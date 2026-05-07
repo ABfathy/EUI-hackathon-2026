@@ -1,0 +1,129 @@
+# Current State
+
+Use this file as the simplest possible implementation tracker. Check items only when the feature is actually working, not when it is partially scaffolded.
+
+## Foundation
+
+- [ ] Next.js app scaffolded
+- [ ] Tailwind configured
+- [ ] Environment variable strategy documented
+- [ ] Shared repo structure created
+- [ ] Core scripts added
+
+## Auth and Access
+
+- [ ] Clerk integrated
+- [ ] Internal routes protected
+- [ ] Public brief route left open
+- [ ] Internal API authorization helpers added
+- [ ] Public mutation boundaries implemented
+
+## Data and Persistence
+
+- [ ] Prisma schema created
+- [ ] Initial migration created
+- [ ] Demo seed flow created
+- [ ] Supabase Postgres connected
+- [ ] Supabase Storage connected
+
+## Projects and Sessions
+
+- [ ] Project creation implemented
+- [ ] Project mode selection implemented
+- [ ] Intake session creation implemented
+- [ ] Project/session sidebar history implemented
+
+## Source Intake
+
+- [ ] Raw text intake implemented
+- [ ] Image upload implemented
+- [ ] Audio upload implemented
+- [ ] PDF upload implemented
+- [ ] Mixed-source submission implemented
+- [ ] Upload validation implemented
+- [ ] Upload progress states implemented
+
+## AI Generation
+
+- [ ] Inngest generation job wired
+- [ ] Text normalization implemented
+- [ ] Audio transcription path implemented
+- [ ] PDF extraction path implemented
+- [ ] Image interpretation path implemented
+- [ ] Vertex AI generation path implemented
+- [ ] Brief contract validation implemented
+- [ ] Snapshot persistence implemented
+- [ ] Generation progress surfaced in UI
+
+## Brief Rendering
+
+- [ ] Internal brief renderer implemented
+- [ ] Summary section rendering implemented
+- [ ] Goals section rendering implemented
+- [ ] Ambiguities section rendering implemented
+- [ ] Follow-up questions section rendering implemented
+- [ ] Confidence labels rendered
+- [ ] Claim-level citations rendered
+- [ ] Evidence detail panel implemented
+
+## Internal Workspace
+
+- [ ] Desktop workspace shell implemented
+- [ ] Left rail project/session navigation implemented
+- [ ] Bottom refinement composer implemented
+- [ ] Right-side inspector implemented
+- [ ] Source assets panel implemented
+- [ ] Revision timeline implemented
+- [ ] Chat history panel implemented
+- [ ] Responsive internal fallback behavior implemented
+
+## Public Review
+
+- [ ] Public share link generation implemented
+- [ ] Public brief page implemented
+- [ ] Section comments implemented
+- [ ] Follow-up answer submission implemented
+- [ ] Brief confirmation implemented
+- [ ] Public success and error states implemented
+- [ ] Mobile public review support verified
+
+## Revision and Feedback
+
+- [ ] Selected-section refinement implemented
+- [ ] Regenerate-from-feedback flow implemented
+- [ ] Revision events persisted
+- [ ] Snapshot restore action implemented
+- [ ] Feedback visible in internal workspace
+
+## Novelty and UX Polish
+
+- [ ] Landing-page decorative treatment added
+- [ ] Controlled animejs transitions added
+- [ ] Reduced-motion handling implemented
+- [ ] Web haptics integrated for supported mobile events
+- [ ] Haptics toggle implemented
+- [ ] Workspace performance pass completed
+
+## Testing
+
+- [ ] Vitest configured
+- [ ] React Testing Library configured
+- [ ] jest-dom configured
+- [ ] Playwright configured
+- [ ] axe-core checks configured
+- [ ] Contract validation unit tests added
+- [ ] Evidence mapping unit tests added
+- [ ] Service logic unit tests added
+- [ ] Brief renderer component tests added
+- [ ] Public feedback component tests added
+- [ ] Desktop e2e happy path added
+- [ ] Mobile public review e2e happy path added
+- [ ] Accessibility smoke tests added
+
+## Deployment and Demo
+
+- [ ] Vercel deployment configured
+- [ ] Environment variables configured in deployment
+- [ ] Demo seed data prepared
+- [ ] Demo happy path rehearsed
+- [ ] Backup demo plan prepared

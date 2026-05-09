@@ -2,15 +2,16 @@ import { Show, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 
 import { RxLogo } from "@/components/icons";
+import { Button } from "@/components/ui/button";
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-6 py-16"
-      style={{ background: "var(--background)" }}>
-
+    <main
+      className="min-h-screen flex flex-col items-center justify-center px-6 py-16"
+      style={{ background: "var(--background)" }}
+    >
       {/* Center card */}
       <div className="w-full max-w-[480px]">
-
         {/* Brand */}
         <div className="flex items-center gap-2.5 mb-8">
           <RxLogo size={22} className="text-[var(--accent)]" />
@@ -36,7 +37,7 @@ export default function HomePage() {
           style={{ color: "var(--fg-tertiary)" }}
         >
           Ingest PDFs, transcripts, tickets, and code. RequireX extracts,
-          structures, and traces every requirement — then shares a clean brief
+          structures, and traces every requirement, then shares a clean brief
           your clients can actually review.
         </p>
 
@@ -44,7 +45,7 @@ export default function HomePage() {
         <div className="flex items-center gap-2 mb-10">
           <Show when="signed-out">
             <SignUpButton mode="redirect">
-              <button
+              <Button
                 className="inline-flex items-center justify-center h-[34px] px-4 rounded-[6px] text-[13px] font-medium transition-colors duration-[120ms] cursor-pointer"
                 style={{
                   background: "var(--accent)",
@@ -52,10 +53,10 @@ export default function HomePage() {
                 }}
               >
                 Get started
-              </button>
+              </Button>
             </SignUpButton>
             <SignInButton mode="redirect">
-              <button
+              <Button
                 className="inline-flex items-center justify-center h-[34px] px-4 rounded-[6px] text-[13px] font-medium transition-colors duration-[120ms] border cursor-pointer"
                 style={{
                   background: "transparent",
@@ -64,7 +65,7 @@ export default function HomePage() {
                 }}
               >
                 Sign in
-              </button>
+              </Button>
             </SignInButton>
           </Show>
           <Show when="signed-in">
@@ -83,10 +84,7 @@ export default function HomePage() {
         </div>
 
         {/* Divider */}
-        <div
-          className="h-px mb-8"
-          style={{ background: "var(--border)" }}
-        />
+        <div className="h-px mb-8" style={{ background: "var(--border)" }} />
 
         {/* Nav cards */}
         <div className="grid grid-cols-2 gap-3">
@@ -107,9 +105,7 @@ export default function HomePage() {
         <p
           className="mt-8 text-[11px] text-center"
           style={{ color: "var(--fg-disabled)" }}
-        >
-          RequireX &mdash; AI-powered requirements engineering
-        </p>
+        ></p>
       </div>
     </main>
   );

@@ -22,12 +22,12 @@ Detailed tasks:
 - ~~choose package manager and repo conventions~~
 - ~~add linting, formatting, and import conventions~~
 - ~~define base folder structure for:~~
-  - app routes
-  - components
-  - components/ui
-  - lib
-  - server
-  - tests
+  - ~~app routes~~
+  - ~~components~~
+  - ~~components/ui~~
+  - ~~lib~~
+  - ~~server~~
+  - ~~tests~~
 - ~~add placeholder routes for the internal app and public brief page~~
 - ~~keep landing page work explicitly optional until the core workflow is stable~~
 - ~~add base error and loading boundaries~~

@@ -30,9 +30,6 @@ export function ProjectSidebar({ onOpenPalette }: ProjectSidebarProps) {
         >
           RequireX
         </span>
-        <IconButton label="Settings">
-          <Icons.Settings size={13} />
-        </IconButton>
       </div>
 
       {/* Search row */}
@@ -47,7 +44,7 @@ export function ProjectSidebar({ onOpenPalette }: ProjectSidebarProps) {
         }}
       >
         <Icons.Search size={12} />
-        <span className="flex-1 text-left text-[11px]">Find requirement…</span>
+        <span className="flex-1 text-left text-[11px]">Find Project…</span>
         <Kbd>⌘K</Kbd>
       </button>
 
@@ -79,9 +76,7 @@ export function ProjectSidebar({ onOpenPalette }: ProjectSidebarProps) {
 
 function EmptyProjects() {
   return (
-    <div
-      className="flex flex-col items-center justify-center gap-2 py-10 px-4 text-center"
-    >
+    <div className="flex flex-col items-center justify-center gap-2 py-10 px-4 text-center">
       <Icons.FileText size={20} className="text-[var(--fg-disabled)]" />
       <p
         className="text-[11px] leading-[1.5]"

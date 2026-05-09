@@ -33,36 +33,6 @@ export function TitleBar({
         borderColor: "var(--border)",
       }}
     >
-      {/* Traffic lights (decorative) */}
-      <div className="flex items-center gap-[5px] mr-1">
-        <span className="size-[10px] rounded-full bg-[#ff5f57]" />
-        <span className="size-[10px] rounded-full bg-[#ffbd2e]" />
-        <span className="size-[10px] rounded-full bg-[#28c840]" />
-      </div>
-
-      {/* Brand */}
-      <div className="flex items-center gap-2 shrink-0">
-        <RxLogo size={15} className="text-[var(--accent)]" />
-        <span
-          className="text-[13px] font-semibold tracking-[-0.01em]"
-          style={{ color: "var(--fg-primary)" }}
-        >
-          RequireX
-        </span>
-        {projectName && (
-          <span
-            className="text-[11px] px-1.5 py-0.5 rounded-[4px] border font-mono"
-            style={{
-              color: "var(--fg-tertiary)",
-              borderColor: "var(--border-strong)",
-              background: "var(--surface-2)",
-            }}
-          >
-            {projectName}
-          </span>
-        )}
-      </div>
-
       {/* Center search trigger */}
       <div className="flex-1 flex justify-center px-4">
         <button
@@ -79,7 +49,9 @@ export function TitleBar({
           }}
         >
           <Icons.Search size={12} />
-          <span className="flex-1 text-left text-[12px]">Search requirements…</span>
+          <span className="flex-1 text-left text-[12px]">
+            Search requirements…
+          </span>
           <Kbd>⌘K</Kbd>
         </button>
       </div>
@@ -101,10 +73,16 @@ export function TitleBar({
           <Icons.PanelRight size={14} />
         </IconButton>
         <IconButton
-          label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          label={
+            theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
+          }
           onClick={onToggleTheme}
         >
-          {theme === "dark" ? <Icons.Sun size={14} /> : <Icons.Moon size={14} />}
+          {theme === "dark" ? (
+            <Icons.Sun size={14} />
+          ) : (
+            <Icons.Moon size={14} />
+          )}
         </IconButton>
       </div>
     </div>

@@ -4,22 +4,27 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[var(--radius-md)] text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35",
+  "inline-flex items-center justify-center gap-[5px] whitespace-nowrap font-medium cursor-default select-none transition-colors duration-fast ease-out-app disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring",
   {
     variants: {
       variant: {
         default:
-          "bg-foreground text-background hover:bg-foreground/90 shadow-[var(--shadow-soft)]",
+          "bg-accent text-accent-fg border border-transparent hover:brightness-110",
         secondary:
-          "border border-border bg-surface text-foreground hover:bg-surface-2",
-        ghost: "text-foreground hover:bg-surface-2",
-        outline: "border border-border bg-transparent hover:bg-surface-2",
+          "bg-surface-2 text-fg-1 border border-border-strong hover:bg-surface-3",
+        ghost:
+          "bg-transparent text-fg-2 border border-transparent hover:bg-surface-2 hover:text-fg-1",
+        danger:
+          "bg-transparent text-danger border border-border-strong hover:bg-danger-subtle",
+        outline:
+          "border border-border bg-transparent text-fg-1 hover:bg-surface-2",
       },
       size: {
-        default: "h-10 px-4 py-2",
-        sm: "h-9 rounded-[var(--radius-sm)] px-3",
-        lg: "h-11 px-5 text-sm",
-        icon: "h-10 w-10",
+        default:
+          "h-[26px] px-[11px] text-[12.5px] rounded-md",
+        sm: "h-[22px] px-2 text-[11.5px] rounded-sm",
+        lg: "h-[30px] px-[14px] text-[13px] rounded-md",
+        icon: "h-6 w-6 rounded-sm",
       },
     },
     defaultVariants: {

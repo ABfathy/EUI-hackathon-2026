@@ -44,3 +44,5 @@ next-env.d.ts
 /Hackthon
 /generated
 .next-dev-*.log
+# clerk configuration (can include secrets)
+/.clerk/

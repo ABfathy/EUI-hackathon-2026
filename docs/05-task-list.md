@@ -138,7 +138,7 @@ Objective:
 - turn uploaded source material into validated brief snapshots
 
 Detailed tasks:
-- wire `Inngest` job triggers for generation and regeneration
+- ~~wire `Inngest` job triggers for generation and regeneration~~
 - implement source bundle assembly from stored assets
 - implement text normalization
 - implement audio transcription integration path

@@ -1,6 +1,6 @@
 # Current State
 
-Last reviewed against the repository on 2026-05-10.
+Last reviewed against the repository on 2026-05-11.
 
 This file tracks what is actually present in code today. A UI shell or mock screen does not count as a completed feature unless it is wired to persisted data and working end to end.
 
@@ -19,13 +19,21 @@ What is genuinely implemented today:
 - public review mutation backend for comments, follow-up answers, and confirmation
 - unit tests around validators, asset services, public review services, public review routes, and public rate limiting
 
+Recently wired (Hour 2 + Hour 4 of the hackathon build):
+
+- internal sidebar lists real `Project` rows for the signed-in user, with active-project highlighting and `?projectId=` deep-linking
+- a "New project" inline form in the sidebar footer calls `createProjectAction` (server action) and redirects to the new project with a fresh `IntakeSession`
+- the right pane Sources tab is wired end-to-end against `GET/POST /api/sessions/[sessionId]/assets` and `DELETE/PATCH /api/assets/[assetId]`
+- the Sources tab now has a real file-upload button using the UploadThing `mixedUploader` route via `@uploadthing/react`
+- the chat-bar paperclip (`ChatBar` in `doc-view.tsx`) shares the same upload pipeline — clicking it opens a hidden file picker and pushes through `mixedUploader`, with the new asset appearing in the Sources tab on completion
+- `appState` flips to `"ready"` when the active session has at least one source asset
+
 What is still mostly scaffolded or mock-only:
 
-- internal workspace UI
 - public brief UI
 - brief generation pipeline
-- project/session management flows
 - any rendering of real generated snapshots
+- the doc surface itself (DocView) — sidebar + sources are real, but the center pane still renders mock requirement lines
 
 ## Foundation
 

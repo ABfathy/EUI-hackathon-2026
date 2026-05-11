@@ -1,29 +1,66 @@
 "use client";
 
 import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { useMounted } from "@/lib/hooks/use-mounted";
+import { useUploadThing } from "@/lib/uploadthing-client";
 
 import { CommandPalette } from "./command-palette";
 import { type AppState, DocView } from "./doc-view";
-import { ProjectSidebar } from "./project-sidebar";
-import { RightPane } from "./right-pane";
+import { type ProjectListItem,ProjectSidebar } from "./project-sidebar";
+import { RightPane, type SourceItem, type SourceType } from "./right-pane";
 import { StatusBar } from "./statusbar";
 import { TitleBar } from "./titlebar";
 
 type RightTab = "sources" | "chat" | "revisions";
 
 interface EditorShellProps {
+  projects?: ProjectListItem[];
+  activeProjectId?: string | null;
   session?: { id: string; title: string } | null;
+  initialSources?: SourceItem[];
 }
 
-export function EditorShell({ session }: EditorShellProps) {
+function mapSourceType(dbType: string): SourceType {
+  if (dbType === "AUDIO") return "AUDIO";
+  if (dbType === "TEXT") return "TEXT";
+  return "FILE";
+}
+
+type ApiAsset = {
+  id: string;
+  sourceType: string;
+  status: SourceItem["status"];
+  displayLabel: string | null;
+  originalFileName: string | null;
+  createdAt: string;
+};
+
+function assetToSource(a: ApiAsset): SourceItem {
+  return {
+    id: a.id,
+    label: a.displayLabel ?? a.originalFileName ?? "Untitled source",
+    sourceType: mapSourceType(a.sourceType),
+    status: a.status,
+    createdAt: a.createdAt,
+  };
+}
+
+export function EditorShell({
+  projects = [],
+  activeProjectId = null,
+  session,
+  initialSources = [],
+}: EditorShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [rightOpen,   setRightOpen]   = useState(false);
+  const [rightOpen,   setRightOpen]   = useState(true);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [rightTab,    setRightTab]    = useState<RightTab>("sources");
   const [selectedReq, setSelectedReq] = useState<string | null>(null);
+  const [sources, setSources] = useState<SourceItem[]>(initialSources);
+  const [sourcesLoading, setSourcesLoading] = useState(false);
+  const [sourcesError, setSourcesError] = useState<string | undefined>(undefined);
   const { resolvedTheme, setTheme } = useTheme();
   const mounted = useMounted();
   const theme: "dark" | "light" | null = mounted
@@ -33,7 +70,103 @@ export function EditorShell({ session }: EditorShellProps) {
     : null;
   const toggleTheme = () =>
     setTheme((theme ?? "dark") === "dark" ? "light" : "dark");
-  const appState: AppState = session ? "no-sources" : "no-session";
+
+  const sessionId = session?.id;
+
+  const refreshSources = useCallback(async () => {
+    if (!sessionId) return;
+    setSourcesError(undefined);
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/assets`, {
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error(`Failed (${res.status})`);
+      const data: { assets: ApiAsset[] } = await res.json();
+      setSources(data.assets.map(assetToSource));
+    } catch {
+      setSourcesError("Could not load sources.");
+    }
+  }, [sessionId]);
+
+  const { startUpload, isUploading } = useUploadThing("mixedUploader", {
+    onClientUploadComplete: () => {
+      void refreshSources();
+    },
+    onUploadError: (err: { message?: string }) => {
+      setSourcesError(err?.message ?? "Upload failed.");
+    },
+  });
+
+  const handleSubmitText = useCallback(
+    async (text: string) => {
+      if (!sessionId) return;
+      const res = await fetch(`/api/sessions/${sessionId}/assets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ textContent: text }),
+      });
+      if (!res.ok) throw new Error("Failed to save text source");
+      await refreshSources();
+    },
+    [sessionId, refreshSources],
+  );
+
+  const handleDeleteSource = useCallback(
+    async (id: string) => {
+      const prev = sources;
+      setSources((cur) => cur.filter((s) => s.id !== id));
+      const res = await fetch(`/api/assets/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        setSources(prev);
+        setSourcesError(
+          res.status === 409
+            ? "Cannot delete a processed source."
+            : "Delete failed.",
+        );
+      }
+    },
+    [sources],
+  );
+
+  const handleRenameSource = useCallback(
+    async (id: string, label: string) => {
+      const prev = sources;
+      setSources((cur) =>
+        cur.map((s) => (s.id === id ? { ...s, label } : s)),
+      );
+      const res = await fetch(`/api/assets/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ displayLabel: label }),
+      });
+      if (!res.ok) {
+        setSources(prev);
+        setSourcesError("Rename failed.");
+      }
+    },
+    [sources],
+  );
+
+  const handleUploadFiles = useCallback(
+    async (files: File[]) => {
+      if (!sessionId || files.length === 0) return;
+      setSourcesLoading(true);
+      try {
+        await startUpload(files, { sessionId });
+      } catch {
+        setSourcesError("Upload failed.");
+      } finally {
+        setSourcesLoading(false);
+      }
+    },
+    [sessionId, startUpload],
+  );
+
+  const appState: AppState = session
+    ? sources.length > 0
+      ? "ready"
+      : "no-sources"
+    : "no-session";
 
   /* ⌘K shortcut */
   useEffect(() => {
@@ -94,7 +227,11 @@ export function EditorShell({ session }: EditorShellProps) {
         {/* Sidebar */}
         <div className="overflow-hidden" style={{ minWidth: 0 }}>
           {sidebarOpen && (
-            <ProjectSidebar onOpenPalette={() => setPaletteOpen(true)} />
+            <ProjectSidebar
+              projects={projects}
+              activeProjectId={activeProjectId}
+              onOpenPalette={() => setPaletteOpen(true)}
+            />
           )}
         </div>
 
@@ -104,12 +241,25 @@ export function EditorShell({ session }: EditorShellProps) {
           selectedReq={selectedReq}
           onSelectReq={handleSelectReq}
           onAddSources={handleOpenSources}
+          onAttachFiles={sessionId ? handleUploadFiles : undefined}
         />
 
         {/* Right pane */}
         <div className="overflow-hidden" style={{ minWidth: 0 }}>
           {rightOpen && (
-            <RightPane activeTab={rightTab} onTabChange={setRightTab} sessionId={session?.id} />
+            <RightPane
+              activeTab={rightTab}
+              onTabChange={setRightTab}
+              sessionId={session?.id}
+              sources={sources}
+              sourcesLoading={sourcesLoading || isUploading}
+              sourcesError={sourcesError}
+              onSubmitText={sessionId ? handleSubmitText : undefined}
+              onDeleteSource={sessionId ? handleDeleteSource : undefined}
+              onRenameSource={sessionId ? handleRenameSource : undefined}
+              onUploadFiles={sessionId ? handleUploadFiles : undefined}
+              onRetrySourceLoad={refreshSources}
+            />
           )}
         </div>
       </div>

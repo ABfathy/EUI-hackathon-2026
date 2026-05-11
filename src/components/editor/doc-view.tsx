@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { Icons } from "@/components/icons";
 import { IconButton } from "@/components/ui/icon-button";
@@ -322,12 +322,25 @@ function EmptyDoc({ state, onAddSources }: { state: AppState; onAddSources?: () 
 }
 
 /* ── ChatBar ────────────────────────────────────────────── */
-function ChatBar() {
+interface ChatBarProps {
+  onAttachFiles?: (files: File[]) => Promise<void>;
+}
+
+function ChatBar({ onAttachFiles }: ChatBarProps) {
   const [value, setValue] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleSend() {
     if (!value.trim()) return;
     setValue("");
+  }
+
+  function handleFilePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = e.target.files ? Array.from(e.target.files) : [];
+    e.target.value = "";
+    if (picked.length > 0 && onAttachFiles) {
+      void onAttachFiles(picked);
+    }
   }
 
   return (
@@ -360,9 +373,21 @@ function ChatBar() {
           autoComplete="off"
           spellCheck={false}
         />
-        <IconButton label="Attach source">
+        <IconButton
+          label="Attach source"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={!onAttachFiles}
+        >
           <Icons.Upload size={14} />
         </IconButton>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept="image/*,application/pdf,audio/*"
+          className="hidden"
+          onChange={handleFilePick}
+        />
         <IconButton label="Send message" onClick={handleSend}>
           <Icons.Send size={14} />
         </IconButton>
@@ -378,6 +403,7 @@ export interface DocViewProps {
   selectedReq: string | null;
   onSelectReq: (id: string) => void;
   onAddSources?: () => void;
+  onAttachFiles?: (files: File[]) => Promise<void>;
   lines?: DocLineData[];
 }
 
@@ -387,6 +413,7 @@ export function DocView({
   selectedReq,
   onSelectReq,
   onAddSources,
+  onAttachFiles,
   lines = [],
 }: DocViewProps) {
   const canGenerate = appState === "ready" || appState === "no-sources";
@@ -458,7 +485,7 @@ export function DocView({
       </div>
 
       {/* Chat bar */}
-      <ChatBar />
+      <ChatBar onAttachFiles={onAttachFiles} />
     </div>
   );
 }

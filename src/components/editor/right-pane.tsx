@@ -30,6 +30,7 @@ export interface RightPaneProps {
   onDeleteSource?: (id: string) => void;
   onRenameSource?: (id: string, label: string) => void;
   onSubmitText?: (text: string) => Promise<void>;
+  onUploadFiles?: (files: File[]) => Promise<void>;
   onRetrySourceLoad?: () => void;
 }
 
@@ -350,11 +351,21 @@ interface SourcesTabProps {
   onDelete?: (id: string) => void;
   onRename?: (id: string, label: string) => void;
   onSubmitText?: (text: string) => Promise<void>;
+  onUploadFiles?: (files: File[]) => Promise<void>;
   onRetry?: () => void;
 }
 
-function SourcesTab({ sources, loading, error, onDelete, onRename, onSubmitText, onRetry }: SourcesTabProps) {
+function SourcesTab({ sources, loading, error, onDelete, onRename, onSubmitText, onUploadFiles, onRetry }: SourcesTabProps) {
   const [pasteOpen, setPasteOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function handleFilePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = e.target.files ? Array.from(e.target.files) : [];
+    e.target.value = "";
+    if (picked.length > 0 && onUploadFiles) {
+      void onUploadFiles(picked);
+    }
+  }
 
   return (
     <>
@@ -415,7 +426,7 @@ function SourcesTab({ sources, loading, error, onDelete, onRename, onSubmitText,
         />
       )}
 
-      {/* Text paste area or Add button */}
+      {/* Text paste area or Add buttons */}
       <div className="px-3 pb-3 mt-1">
         {pasteOpen ? (
           <TextPasteArea
@@ -423,19 +434,44 @@ function SourcesTab({ sources, loading, error, onDelete, onRename, onSubmitText,
             onCancel={() => setPasteOpen(false)}
           />
         ) : (
-          <button
-            type="button"
-            onClick={() => setPasteOpen(true)}
-            className="flex items-center gap-1.5 h-[26px] px-2 rounded-[5px] text-[11px] border transition-colors duration-[120ms] hover:bg-[var(--surface-3)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer w-full"
-            style={{
-              color: "var(--fg-tertiary)",
-              borderColor: "var(--border)",
-              background: "transparent",
-            }}
-          >
-            <Icons.Plus size={12} aria-hidden="true" />
-            <span>Add text source</span>
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setPasteOpen(true)}
+              disabled={!onSubmitText}
+              className="flex items-center gap-1.5 h-[26px] px-2 rounded-[5px] text-[11px] border transition-colors duration-[120ms] hover:bg-[var(--surface-3)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex-1"
+              style={{
+                color: "var(--fg-tertiary)",
+                borderColor: "var(--border)",
+                background: "transparent",
+              }}
+            >
+              <Icons.Plus size={12} aria-hidden="true" />
+              <span>Add text</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={!onUploadFiles}
+              className="flex items-center gap-1.5 h-[26px] px-2 rounded-[5px] text-[11px] border transition-colors duration-[120ms] hover:bg-[var(--surface-3)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex-1"
+              style={{
+                color: "var(--fg-tertiary)",
+                borderColor: "var(--border)",
+                background: "transparent",
+              }}
+            >
+              <Icons.FileText size={12} aria-hidden="true" />
+              <span>Upload files</span>
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/*,application/pdf,audio/*"
+              className="hidden"
+              onChange={handleFilePick}
+            />
+          </div>
         )}
       </div>
     </>
@@ -478,6 +514,7 @@ export function RightPane({
   onDeleteSource,
   onRenameSource,
   onSubmitText,
+  onUploadFiles,
   onRetrySourceLoad,
 }: RightPaneProps) {
   return (
@@ -537,6 +574,7 @@ export function RightPane({
             onDelete={onDeleteSource}
             onRename={onRenameSource}
             onSubmitText={onSubmitText}
+            onUploadFiles={onUploadFiles}
             onRetry={onRetrySourceLoad}
           />
         )}

@@ -133,7 +133,11 @@ Unit tests in `tests/unit/` — not yet wired to Vitest runner (Workstream 10).
 
 `AppState` (defined in `src/components/editor/doc-view.tsx`): `no-session → no-sources → generating → failed → ready`.
 
-`src/app/app/page.tsx` is an async server component — it queries `prisma.intakeSession.findFirst` by `clerkUserId` and passes `{ id, title } | null` to `EditorShell`. `EditorShell` derives `appState` from the presence of the session prop and threads `sessionName` (title) to `DocView`/`StatusBar` and `sessionId` (id) to `RightPane`.
+`src/app/app/page.tsx` is an async server component. It reads `?projectId=` from `searchParams`, calls `ensureWorkspaceForUser(clerkUserId)` (upserts a per-user workspace on first visit) and `listProjectsForUser(clerkUserId)`, picks the active project (URL param → first project by `updatedAt desc`), loads its earliest `IntakeSession`, and prefetches assets via `getSessionAssets`. It hands `{ projects, activeProjectId, session, initialSources }` to `EditorShell`.
+
+`EditorShell` owns the client-side `sources` state and derives `appState`: `session ? (sources.length > 0 ? "ready" : "no-sources") : "no-session"`. Mutations hit the existing REST endpoints (`POST/DELETE/PATCH /api/{sessions,assets}/...`); uploads go through `useUploadThing("mixedUploader", { onClientUploadComplete: refresh })` from `src/lib/uploadthing-client.ts`. Two entry points share that single upload handler (`handleUploadFiles`): the Sources-tab "Upload files" button in `RightPane` and the paperclip `IconButton` inside `ChatBar` (in `doc-view.tsx`, fed via the `onAttachFiles` prop on `DocView`). Both render a hidden `<input type="file" multiple accept="image/*,application/pdf,audio/*" />` and are disabled when there is no active session. The sidebar's "New project" inline form submits to the `createProjectAction` server action (`src/server/actions/projects.ts`), which creates `Project + IntakeSession` in a transaction and `redirect("/app?projectId=<new>")`.
+
+Project/session services live in `src/server/services/projects.ts`: `ensureWorkspaceForUser`, `listProjectsForUser`, `createProject`. Workspace slug for a user is `ws-<lowercased-userid-with-non-alnum-replaced>`.
 
 ### Theme
 

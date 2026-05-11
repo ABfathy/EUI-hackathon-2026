@@ -6,7 +6,6 @@ import { Icons } from "@/components/icons";
 import { IconButton } from "@/components/ui/icon-button";
 
 import { AddTextDialog } from "./add-text-dialog";
-import { SourcePreviewModal } from "./source-preview-modal";
 
 /* ── Types ─────────────────────────────────────────────── */
 type RightTab = "sources" | "chat" | "revisions";
@@ -49,6 +48,7 @@ export interface RightPaneProps {
   onSubmitText?: (text: string) => Promise<void>;
   onUploadFiles?: (files: File[]) => Promise<void>;
   onRetrySourceLoad?: () => void;
+  onPreviewSource?: (item: SourceItem) => void;
   /* revisions tab */
   snapshots?: SnapshotListItem[];
   snapshotsLoading?: boolean;
@@ -322,6 +322,7 @@ interface SourcesTabProps {
   onSubmitText?: (text: string) => Promise<void>;
   onUploadFiles?: (files: File[]) => Promise<void>;
   onRetry?: () => void;
+  onPreview?: (item: SourceItem) => void;
 }
 
 function SourcesTab({
@@ -333,9 +334,9 @@ function SourcesTab({
   onSubmitText,
   onUploadFiles,
   onRetry,
+  onPreview,
 }: SourcesTabProps) {
   const [pasteOpen, setPasteOpen] = useState(false);
-  const [previewItem, setPreviewItem] = useState<SourceItem | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleFilePick(e: React.ChangeEvent<HTMLInputElement>) {
@@ -392,7 +393,7 @@ function SourcesTab({
               item={item}
               onDelete={onDelete}
               onRename={onRename}
-              onPreview={setPreviewItem}
+              onPreview={onPreview}
             />
           ))}
         </div>
@@ -457,12 +458,6 @@ function SourcesTab({
         />
       )}
 
-      {previewItem && (
-        <SourcePreviewModal
-          item={previewItem}
-          onClose={() => setPreviewItem(null)}
-        />
-      )}
     </div>
   );
 }
@@ -472,10 +467,15 @@ function ChatTab() {
   return (
     <>
       <SectionLabel>Chat history</SectionLabel>
-      <EmptyState
-        icon={<Icons.MessageSquare size={20} />}
-        message={"No messages yet.\nUse the chat bar below to get started."}
-      />
+      <div className="flex flex-col items-center justify-center gap-2 py-12 px-4 text-center">
+        <div style={{ color: "var(--fg-disabled)" }}><Icons.MessageSquare size={20} /></div>
+        <p className="text-[11px] font-medium" style={{ color: "var(--fg-muted)" }}>
+          No messages yet.
+        </p>
+        <p className="text-[11px] leading-[1.5]" style={{ color: "var(--fg-disabled)", textWrap: "pretty" } as React.CSSProperties}>
+          Use the chat bar below to get started.
+        </p>
+      </div>
     </>
   );
 }
@@ -557,10 +557,15 @@ function RevisionsTab({ snapshots, loading, viewingSnapshotId, onViewSnapshot }:
       )}
 
       {!loading && (!snapshots || snapshots.length === 0) && (
-        <EmptyState
-          icon={<Icons.History size={20} />}
-          message="No revisions yet.\nRevisions appear after the first generation."
-        />
+        <div className="flex flex-col items-center justify-center gap-2 py-12 px-4 text-center">
+          <div style={{ color: "var(--fg-disabled)" }}><Icons.History size={20} /></div>
+          <p className="text-[11px] font-medium" style={{ color: "var(--fg-muted)" }}>
+            No revisions yet.
+          </p>
+          <p className="text-[11px] leading-[1.5]" style={{ color: "var(--fg-disabled)", textWrap: "pretty" } as React.CSSProperties}>
+            Revisions appear after the first generation.
+          </p>
+        </div>
       )}
 
       {!loading && snapshots && snapshots.length > 0 && (
@@ -654,6 +659,7 @@ export function RightPane({
   onSubmitText,
   onUploadFiles,
   onRetrySourceLoad,
+  onPreviewSource,
   snapshots,
   snapshotsLoading,
   viewingSnapshotId,
@@ -720,6 +726,7 @@ export function RightPane({
             onSubmitText={onSubmitText}
             onUploadFiles={onUploadFiles}
             onRetry={onRetrySourceLoad}
+            onPreview={onPreviewSource}
           />
         )}
         {activeTab === "chat" && <ChatTab />}

@@ -14,6 +14,7 @@ import { ProjectSearchPalette } from "./project-search-palette";
 import { type ProjectListItem, ProjectSidebar } from "./project-sidebar";
 import { ResizeHandle } from "./resize-handle";
 import { RightPane, type SnapshotListItem, type SourceItem, type SourceType } from "./right-pane";
+import { SourcePreviewModal } from "./source-preview-modal";
 import { StatusBar } from "./statusbar";
 import { TitleBar } from "./titlebar";
 
@@ -111,6 +112,7 @@ export function EditorShell({
   const [resizing, setResizing] = useState<null | "left" | "right">(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [projectSearchOpen, setProjectSearchOpen] = useState(false);
+  const [previewItem, setPreviewItem] = useState<SourceItem | null>(null);
   const [rightTab, setRightTab] = useState<RightTab>("sources");
   const [selectedReq, setSelectedReq] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
@@ -639,6 +641,10 @@ export function EditorShell({
           lines={displayLines}
           viewingVersion={viewingVersion}
           onExitVersionView={() => handleViewSnapshot(null)}
+          onOpenSource={(id) => {
+            const s = sources.find((src) => src.id === id);
+            if (s) setPreviewItem(s);
+          }}
         />
 
         <div className="relative overflow-hidden" style={{ minWidth: 0 }}>
@@ -667,6 +673,7 @@ export function EditorShell({
               onRenameSource={sessionId ? handleRenameSource : undefined}
               onUploadFiles={sessionId ? handleUploadFiles : undefined}
               onRetrySourceLoad={refreshSources}
+              onPreviewSource={setPreviewItem}
               snapshots={snapshots}
               snapshotsLoading={snapshotsLoading}
               viewingSnapshotId={viewingSnapshotId}
@@ -681,6 +688,9 @@ export function EditorShell({
         sessionName={session?.title ?? null}
       />
 
+      {previewItem && (
+        <SourcePreviewModal item={previewItem} onClose={() => setPreviewItem(null)} />
+      )}
       {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} />}
       {projectSearchOpen && (
         <ProjectSearchPalette

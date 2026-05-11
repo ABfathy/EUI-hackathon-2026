@@ -61,25 +61,39 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 /* ── EvidenceBit ────────────────────────────────────────── */
-function EvidenceBit({ ev }: { ev: EvidenceRef }) {
+function EvidenceBit({
+  ev,
+  onOpenSource,
+}: {
+  ev: EvidenceRef;
+  onOpenSource?: (sourceId: string) => void;
+}) {
   const [show, setShow] = useState(false);
   return (
     <span
-      className="relative inline-flex items-center gap-1 ml-1.5 px-1.5 h-[18px] rounded-[3px] border cursor-default select-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)]"
+      className="relative inline-flex items-center gap-1 ml-1.5 px-1.5 h-[18px] rounded-[3px] border select-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)]"
       tabIndex={0}
       role="button"
-      aria-label={`Evidence: ${ev.sourceName} — ${ev.ref}`}
+      aria-label={`Evidence from ${ev.sourceName} — click to open source`}
       style={{
         background: "var(--surface-3)",
         borderColor: "var(--border-strong)",
         color: "var(--fg-tertiary)",
         fontSize: 10,
         fontFamily: "var(--font-mono)",
+        cursor: onOpenSource ? "pointer" : "default",
       }}
       onMouseEnter={() => setShow(true)}
       onMouseLeave={() => setShow(false)}
       onFocus={() => setShow(true)}
       onBlur={() => setShow(false)}
+      onClick={() => onOpenSource?.(ev.sourceId)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpenSource?.(ev.sourceId);
+        }
+      }}
     >
       <Icons.FileText size={9} aria-hidden="true" />
       <span>{ev.ref}</span>
@@ -109,6 +123,14 @@ function EvidenceBit({ ev }: { ev: EvidenceRef }) {
           >
             {ev.quote}
           </span>
+          {onOpenSource && (
+            <span
+              className="block text-[10px] mt-1.5"
+              style={{ color: "var(--accent)" }}
+            >
+              Click to open source
+            </span>
+          )}
         </span>
       )}
     </span>
@@ -120,10 +142,12 @@ function DocLine({
   line,
   selectedReq,
   onSelectReq,
+  onOpenSource,
 }: {
   line: DocLineData;
   selectedReq: string | null;
   onSelectReq: (id: string) => void;
+  onOpenSource?: (sourceId: string) => void;
 }) {
   const isReq = !!line.reqId;
   const isActive = isReq && line.reqId === selectedReq;
@@ -230,7 +254,7 @@ function DocLine({
           >
             {line.text}
             {line.evidence?.map((ev, i) => (
-              <EvidenceBit key={i} ev={ev} />
+              <EvidenceBit key={i} ev={ev} onOpenSource={onOpenSource} />
             ))}
           </span>
         )}
@@ -399,15 +423,17 @@ function ChatBar({ onAttachFiles }: ChatBarProps) {
 
   return (
     <div
-      className="shrink-0 border-t"
+      className="shrink-0 border-t px-3 py-2.5"
       style={{ borderColor: "var(--border)", background: "var(--background)" }}
     >
-      <div className="flex items-center gap-2.5 h-[52px] px-4">
-        <Icons.MessageSquare
-          size={14}
-          aria-hidden="true"
-          className="shrink-0 text-[var(--fg-muted)]"
-        />
+      <div
+        className="flex items-center gap-1.5 px-3 rounded-[10px] transition-shadow duration-[150ms] focus-within:ring-1 focus-within:ring-[var(--accent-ring)]"
+        style={{
+          background: "var(--surface-2)",
+          border: "1px solid var(--border-strong)",
+          minHeight: "38px",
+        }}
+      >
         <label htmlFor="doc-chat-input" className="sr-only">
           Chat input
         </label>
@@ -421,30 +447,32 @@ function ChatBar({ onAttachFiles }: ChatBarProps) {
               handleSend();
             }
           }}
-          placeholder="Ask about requirements, request changes, upload sources…"
-          className="flex-1 bg-transparent text-[13px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] rounded-[3px]"
+          placeholder="Ask about the brief, request changes…"
+          className="flex-1 bg-transparent text-[12.5px] py-2 focus-visible:outline-none"
           style={{ color: "var(--fg-primary)" }}
           autoComplete="off"
           spellCheck={false}
         />
-        <IconButton
-          label="Attach source"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={!onAttachFiles}
-        >
-          <Icons.Upload size={14} />
-        </IconButton>
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept="image/*,application/pdf,audio/*"
-          className="hidden"
-          onChange={handleFilePick}
-        />
-        <IconButton label="Send message" onClick={handleSend}>
-          <Icons.Send size={14} />
-        </IconButton>
+        <div className="flex items-center gap-0.5 shrink-0">
+          <IconButton
+            label="Attach source"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={!onAttachFiles}
+          >
+            <Icons.Upload size={13} />
+          </IconButton>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/*,application/pdf,audio/*"
+            className="hidden"
+            onChange={handleFilePick}
+          />
+          <IconButton label="Send message" onClick={handleSend}>
+            <Icons.Send size={13} />
+          </IconButton>
+        </div>
       </div>
     </div>
   );
@@ -461,6 +489,7 @@ export interface DocViewProps {
   onGenerateBrief?: () => void;
   generating?: boolean;
   onAttachFiles?: (files: File[]) => Promise<void>;
+  onOpenSource?: (sourceId: string) => void;
   lines?: DocLineData[];
   viewingVersion?: number | null;
   onExitVersionView?: () => void;
@@ -476,6 +505,7 @@ export function DocView({
   onGenerateBrief,
   generating = false,
   onAttachFiles,
+  onOpenSource,
   lines = [],
   viewingVersion = null,
   onExitVersionView,
@@ -593,6 +623,7 @@ export function DocView({
               line={line}
               selectedReq={selectedReq}
               onSelectReq={onSelectReq}
+              onOpenSource={onOpenSource}
             />
           ))
         )}

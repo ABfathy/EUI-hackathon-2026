@@ -98,7 +98,7 @@ export function ProjectSidebar({
         >
           <Icons.Search size={12} aria-hidden="true" />
           <span className="flex-1 text-left text-[11px]">Find Project…</span>
-          <Kbd>{isMac ? "⌘K" : "Ctrl+K"}</Kbd>
+          <Kbd>{isMac ? "⌘P" : "Ctrl+P"}</Kbd>
         </button>
 
         {/* Scrollable tree */}

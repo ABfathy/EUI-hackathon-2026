@@ -9,6 +9,7 @@ import { usePersistentState } from "@/lib/hooks/use-persistent-state";
 import { useUploadThing } from "@/lib/uploadthing-client";
 
 import { CommandPalette } from "./command-palette";
+import { ProjectSearchPalette } from "./project-search-palette";
 import { type AppState, type DocLineData, DocView } from "./doc-view";
 import { type ProjectListItem, ProjectSidebar } from "./project-sidebar";
 import { ResizeHandle } from "./resize-handle";
@@ -109,6 +110,7 @@ export function EditorShell({
   );
   const [resizing, setResizing] = useState<null | "left" | "right">(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [projectSearchOpen, setProjectSearchOpen] = useState(false);
   const [rightTab, setRightTab] = useState<RightTab>("sources");
   const [selectedReq, setSelectedReq] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
@@ -446,15 +448,20 @@ export function EditorShell({
   const activeProjectName =
     projects.find((p) => p.id === activeProjectId)?.name ?? null;
 
-  /* ⌘K shortcut */
+  /* ⌘K → command palette · ⌘P → project search */
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         setPaletteOpen((p) => !p);
       }
+      if ((e.metaKey || e.ctrlKey) && e.key === "p") {
+        e.preventDefault();
+        setProjectSearchOpen((p) => !p);
+      }
       if (e.key === "Escape") {
         setPaletteOpen(false);
+        setProjectSearchOpen(false);
       }
     }
     window.addEventListener("keydown", handleKey);
@@ -590,7 +597,7 @@ export function EditorShell({
             <ProjectSidebar
               projects={projects}
               activeProjectId={activeProjectId}
-              onOpenPalette={() => setPaletteOpen(true)}
+              onOpenPalette={() => setProjectSearchOpen(true)}
               onSwitchProject={handleSwitchProject}
               onDeleteProject={handleDeleteProject}
             />
@@ -665,6 +672,14 @@ export function EditorShell({
       />
 
       {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} />}
+      {projectSearchOpen && (
+        <ProjectSearchPalette
+          projects={projects}
+          activeProjectId={activeProjectId}
+          onSelect={handleSwitchProject}
+          onClose={() => setProjectSearchOpen(false)}
+        />
+      )}
     </div>
   );
 }

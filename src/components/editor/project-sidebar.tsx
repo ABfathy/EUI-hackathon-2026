@@ -165,17 +165,18 @@ export function ProjectSidebar({
             <button
               type="button"
               onClick={startCreate}
-              className="flex items-center gap-1.5 flex-1 h-[26px] px-2 rounded-[5px] text-[11px] transition-colors duration-[120ms] hover:bg-[var(--surface-2)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
+              className="flex items-center gap-1.5 flex-1 min-w-0 h-[26px] px-2 rounded-[5px] text-[11px] transition-colors duration-[120ms] hover:bg-[var(--surface-2)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
               style={{ color: "var(--fg-tertiary)" }}
             >
-              <Icons.Plus size={13} aria-hidden="true" />
-              <span>New project</span>
+              <Icons.Plus size={13} aria-hidden="true" className="shrink-0" />
+              <span className="truncate">New project</span>
             </button>
           )}
           <IconButton
             label="Open settings"
             onClick={() => setSettingsOpen(true)}
             onMouseEnter={preloadAvatar}
+            className="shrink-0"
           >
             <Icons.Settings size={13} />
           </IconButton>

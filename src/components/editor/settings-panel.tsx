@@ -3,11 +3,11 @@
 import { useClerk, useUser } from "@clerk/nextjs";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
 import { useEffect, useRef } from "react";
 
 import { Icons } from "@/components/icons";
 import { useIsMac } from "@/lib/hooks/use-is-mac";
-import { useTheme } from "@/lib/hooks/use-theme";
 
 interface SettingsPanelProps {
   onClose: () => void;
@@ -133,7 +133,9 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: () =
 export function SettingsPanel({ onClose }: SettingsPanelProps) {
   const { user } = useUser();
   const { signOut, openUserProfile } = useClerk();
-  const { theme, toggle: toggleTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
+  const theme = resolvedTheme ?? "dark";
+  const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
   const isMac = useIsMac();
   const mod = isMac ? "⌘" : "Ctrl";
   const router = useRouter();

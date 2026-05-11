@@ -3,8 +3,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 
 import { ClerkModalGuard } from "@/components/clerk-modal-guard";
-import { ThemedClerkProvider } from "@/components/clerk-provider";
-import { ThemeSync } from "@/components/theme-sync";
+import { Providers } from "@/components/providers";
 
 export const metadata: Metadata = {
   title: "RequireX",
@@ -17,13 +16,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" data-theme="dark" className="h-full antialiased" style={{ colorScheme: "dark", background: "#141517" }}>
+    <html
+      lang="en"
+      className="h-full antialiased"
+      suppressHydrationWarning
+    >
       <head>
         <meta name="theme-color" content="#141517" />
-        <link
-          rel="preconnect"
-          href="https://fonts.googleapis.com"
-        />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
           rel="preconnect"
           href="https://fonts.gstatic.com"
@@ -36,11 +36,10 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen text-foreground">
-        <ThemedClerkProvider>
-          <ThemeSync />
+        <Providers>
           <ClerkModalGuard />
           {children}
-        </ThemedClerkProvider>
+        </Providers>
       </body>
     </html>
   );

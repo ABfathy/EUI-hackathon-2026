@@ -1,7 +1,8 @@
 "use client";
 
 import { ClerkProvider } from "@clerk/nextjs";
-import { useEffect, useState } from "react";
+import { useTheme } from "next-themes";
+import { ThemeProvider } from "next-themes";
 
 const SHARED = {
   borderRadius: "8px",
@@ -41,30 +42,26 @@ const LIGHT_APPEARANCE = {
   elements: { modalBackdrop: "!bg-black/40 !backdrop-blur-md" },
 } as const;
 
-function getInitialIsDark(): boolean {
-  if (typeof window === "undefined") return true;
-  const stored = localStorage.getItem("rx-theme");
-  if (stored) return stored !== "light";
-  return window.matchMedia("(prefers-color-scheme: dark)").matches;
-}
-
-export function ThemedClerkProvider({ children }: { children: React.ReactNode }) {
-  const [isDark, setIsDark] = useState(true); // SSR default = dark
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setIsDark(getInitialIsDark());
-
-    function onThemeChange(e: Event) {
-      setIsDark((e as CustomEvent<string>).detail !== "light");
-    }
-    window.addEventListener("rx-theme-change", onThemeChange);
-    return () => window.removeEventListener("rx-theme-change", onThemeChange);
-  }, []);
-
+function ThemedClerkProvider({ children }: { children: React.ReactNode }) {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme !== "light";
   return (
     <ClerkProvider appearance={isDark ? DARK_APPEARANCE : LIGHT_APPEARANCE}>
       {children}
     </ClerkProvider>
+  );
+}
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <ThemeProvider
+      attribute="data-theme"
+      defaultTheme="system"
+      enableSystem
+      disableTransitionOnChange
+      storageKey="rx-theme"
+    >
+      <ThemedClerkProvider>{children}</ThemedClerkProvider>
+    </ThemeProvider>
   );
 }

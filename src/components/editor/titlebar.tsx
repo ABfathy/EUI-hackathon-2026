@@ -1,6 +1,8 @@
 "use client";
 
-import { Icons } from "@/components/icons";
+import Link from "next/link";
+
+import { Icons, RxLogo } from "@/components/icons";
 import { IconButton } from "@/components/ui/icon-button";
 import { Kbd } from "@/components/ui/kbd";
 import { useIsMac } from "@/lib/hooks/use-is-mac";
@@ -33,6 +35,22 @@ export function TitleBar({
         borderColor: "var(--border)",
       }}
     >
+      {/* Brand */}
+      <Link
+        href="/"
+        className="flex items-center gap-1.5 h-[22px] px-2 rounded-[4px] transition-colors duration-[120ms] hover:bg-[var(--surface-3)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] shrink-0"
+        aria-label="RequireX — go to home"
+      >
+        <RxLogo size={13} className="text-[var(--accent)]" />
+        <span
+          className="text-[12px] font-semibold tracking-[-0.01em]"
+          style={{ color: "var(--fg-primary)" }}
+          translate="no"
+        >
+          RequireX
+        </span>
+      </Link>
+
       {/* Center search trigger */}
       <div className="flex-1 flex justify-center px-4">
         <button

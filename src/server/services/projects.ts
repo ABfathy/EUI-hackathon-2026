@@ -1,4 +1,4 @@
-import type { SourceAssetStatus } from "@prisma/client";
+import type { SourceAssetStatus } from "../../../generated/prisma/client";
 
 import { prisma } from "@/lib/prisma";
 

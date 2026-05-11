@@ -3,6 +3,10 @@ import { z } from "zod";
 
 import { inngest } from "@/server/inngest/client";
 import { INNGEST_EVENTS } from "@/server/inngest/events";
+import {
+  BriefPipelineError,
+  runTextBriefGeneration,
+} from "@/server/services/brief-pipeline";
 
 const generationEventDataSchema = z.object({
   jobId: z.string().min(1),
@@ -15,7 +19,27 @@ const regenerationEventDataSchema = generationEventDataSchema.extend({
   sourceSnapshotId: z.string().min(1),
 });
 
-async function markPipelineNotImplemented(jobId: string) {
+function errorCode(error: unknown) {
+  if (error instanceof BriefPipelineError) {
+    return error.code;
+  }
+
+  if (error instanceof z.ZodError) {
+    return "INVALID_GENERATION_CONTRACT";
+  }
+
+  return "BRIEF_PIPELINE_FAILED";
+}
+
+function errorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Brief generation failed.";
+}
+
+async function markPipelineFailed(jobId: string, error: unknown) {
   const { prisma } = await import("@/lib/prisma");
 
   await prisma.processingJob.update({
@@ -25,9 +49,8 @@ async function markPipelineNotImplemented(jobId: string) {
     data: {
       status: "FAILED",
       completedAt: new Date(),
-      errorCode: "PIPELINE_NOT_IMPLEMENTED",
-      errorMessage:
-        "The Inngest trigger is wired, but the AI processing pipeline is not implemented yet.",
+      errorCode: errorCode(error),
+      errorMessage: errorMessage(error),
     },
   });
 }
@@ -62,13 +85,17 @@ export const generateBriefSnapshot = inngest.createFunction(
       });
     });
 
-    await step.run("stop-unimplemented-generation-pipeline", async () => {
-      await markPipelineNotImplemented(data.jobId);
-    });
+    try {
+      return await step.run("run-text-first-generation-pipeline", async () =>
+        runTextBriefGeneration(data),
+      );
+    } catch (error) {
+      await step.run("mark-generation-job-failed", async () => {
+        await markPipelineFailed(data.jobId, error);
+      });
 
-    throw new NonRetriableError(
-      "Brief generation processing is not implemented yet.",
-    );
+      throw new NonRetriableError(errorMessage(error));
+    }
   },
 );
 
@@ -102,13 +129,17 @@ export const regenerateBriefSnapshot = inngest.createFunction(
       });
     });
 
-    await step.run("stop-unimplemented-regeneration-pipeline", async () => {
-      await markPipelineNotImplemented(data.jobId);
-    });
+    try {
+      return await step.run("run-text-first-regeneration-pipeline", async () =>
+        runTextBriefGeneration(data),
+      );
+    } catch (error) {
+      await step.run("mark-regeneration-job-failed", async () => {
+        await markPipelineFailed(data.jobId, error);
+      });
 
-    throw new NonRetriableError(
-      "Brief regeneration processing is not implemented yet.",
-    );
+      throw new NonRetriableError(errorMessage(error));
+    }
   },
 );
 

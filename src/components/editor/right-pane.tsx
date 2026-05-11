@@ -6,10 +6,16 @@ import { Icons } from "@/components/icons";
 import { IconButton } from "@/components/ui/icon-button";
 
 import { AddTextDialog } from "./add-text-dialog";
-import { SourcePreviewModal } from "./source-preview-modal";
 
 /* ── Types ─────────────────────────────────────────────── */
 type RightTab = "sources" | "chat" | "revisions";
+
+export interface SnapshotListItem {
+  id: string;
+  version: number;
+  status: string;
+  createdAt: Date | string;
+}
 
 export type SourceType = "TEXT" | "AUDIO" | "IMAGE" | "PDF";
 export type SourceStatus =
@@ -42,6 +48,12 @@ export interface RightPaneProps {
   onSubmitText?: (text: string) => Promise<void>;
   onUploadFiles?: (files: File[]) => Promise<void>;
   onRetrySourceLoad?: () => void;
+  onPreviewSource?: (item: SourceItem) => void;
+  /* revisions tab */
+  snapshots?: SnapshotListItem[];
+  snapshotsLoading?: boolean;
+  viewingSnapshotId?: string | null;
+  onViewSnapshot?: (id: string | null) => void;
 }
 
 const TABS: { id: RightTab; label: string }[] = [
@@ -74,7 +86,7 @@ function EmptyState({
       <div style={{ color: "var(--fg-disabled)" }}>{icon}</div>
       <p
         className="text-[11px] leading-[1.5] whitespace-pre-line"
-        style={{ color: "var(--fg-muted)" }}
+        style={{ color: "var(--fg-muted)", textWrap: "pretty" } as React.CSSProperties}
       >
         {message}
       </p>
@@ -310,6 +322,7 @@ interface SourcesTabProps {
   onSubmitText?: (text: string) => Promise<void>;
   onUploadFiles?: (files: File[]) => Promise<void>;
   onRetry?: () => void;
+  onPreview?: (item: SourceItem) => void;
 }
 
 function SourcesTab({
@@ -321,9 +334,9 @@ function SourcesTab({
   onSubmitText,
   onUploadFiles,
   onRetry,
+  onPreview,
 }: SourcesTabProps) {
   const [pasteOpen, setPasteOpen] = useState(false);
-  const [previewItem, setPreviewItem] = useState<SourceItem | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleFilePick(e: React.ChangeEvent<HTMLInputElement>) {
@@ -335,7 +348,7 @@ function SourcesTab({
   }
 
   return (
-    <>
+    <div className="flex flex-col min-h-full">
       <SectionLabel>Ingested sources</SectionLabel>
 
       {/* Error state */}
@@ -380,7 +393,7 @@ function SourcesTab({
               item={item}
               onDelete={onDelete}
               onRename={onRename}
-              onPreview={setPreviewItem}
+              onPreview={onPreview}
             />
           ))}
         </div>
@@ -397,7 +410,7 @@ function SourcesTab({
       )}
 
       {/* Add buttons */}
-      <div className="px-3 pb-3 mt-1">
+      <div className="px-3 pb-3 pt-2 mt-auto border-t" style={{ borderColor: "var(--border)" }}>
         <div className="flex items-center gap-1.5">
           <button
             type="button"
@@ -445,13 +458,7 @@ function SourcesTab({
         />
       )}
 
-      {previewItem && (
-        <SourcePreviewModal
-          item={previewItem}
-          onClose={() => setPreviewItem(null)}
-        />
-      )}
-    </>
+    </div>
   );
 }
 
@@ -460,25 +467,182 @@ function ChatTab() {
   return (
     <>
       <SectionLabel>Chat history</SectionLabel>
-      <EmptyState
-        icon={<Icons.MessageSquare size={20} />}
-        message={"No messages yet.\nUse the chat bar below to get started."}
-      />
+      <div className="flex flex-col items-center justify-center gap-2 py-12 px-4 text-center">
+        <div style={{ color: "var(--fg-disabled)" }}><Icons.MessageSquare size={20} /></div>
+        <p className="text-[11px] font-medium" style={{ color: "var(--fg-muted)" }}>
+          No messages yet.
+        </p>
+        <p className="text-[11px] leading-[1.5]" style={{ color: "var(--fg-disabled)", textWrap: "pretty" } as React.CSSProperties}>
+          Use the chat bar below to get started.
+        </p>
+      </div>
     </>
   );
 }
 
+/* ── Status chip for snapshot ───────────────────────────── */
+const SNAPSHOT_STATUS_COLOR: Record<string, string> = {
+  DRAFT: "var(--fg-disabled)",
+  SHARED: "var(--info)",
+  CONFIRMED: "var(--success)",
+  SUPERSEDED: "var(--fg-disabled)",
+};
+
+function relativeTimeSnapshot(date: Date | string): string {
+  try {
+    const diffMinutes = Math.round(
+      (new Date(date).getTime() - Date.now()) / 60_000,
+    );
+    if (Math.abs(diffMinutes) >= 60 * 24) {
+      const days = Math.round(diffMinutes / (60 * 24));
+      return new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(days, "day");
+    }
+    if (Math.abs(diffMinutes) >= 60) {
+      const hours = Math.round(diffMinutes / 60);
+      return new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(hours, "hour");
+    }
+    return new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(diffMinutes, "minute");
+  } catch {
+    return "";
+  }
+}
+
 /* ── RevisionsTab ───────────────────────────────────────── */
-function RevisionsTab() {
+interface RevisionsTabProps {
+  snapshots?: SnapshotListItem[];
+  loading?: boolean;
+  viewingSnapshotId?: string | null;
+  onViewSnapshot?: (id: string | null) => void;
+}
+
+function RevisionsTab({ snapshots, loading, viewingSnapshotId, onViewSnapshot }: RevisionsTabProps) {
+  const isViewingPast = Boolean(viewingSnapshotId);
+
   return (
     <>
       <SectionLabel>Revision history</SectionLabel>
-      <EmptyState
-        icon={<Icons.History size={20} />}
-        message={
-          "No revisions yet.\nRevisions appear after the first generation."
-        }
-      />
+
+      {isViewingPast && (
+        <div className="mx-3 mb-2">
+          <button
+            type="button"
+            onClick={() => onViewSnapshot?.(null)}
+            className="flex items-center gap-1.5 w-full h-[26px] px-2 rounded-[5px] text-[11px] border transition-colors duration-[120ms] hover:bg-[var(--surface-3)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
+            style={{
+              color: "var(--accent)",
+              borderColor: "color-mix(in srgb, var(--accent) 40%, transparent)",
+              background: "color-mix(in srgb, var(--accent) 8%, transparent)",
+            }}
+          >
+            <Icons.ArrowLeft size={11} aria-hidden="true" />
+            <span>Return to latest</span>
+          </button>
+        </div>
+      )}
+
+      {loading && (
+        <div aria-label="Loading revisions…">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex gap-2.5 px-3 py-2" aria-hidden="true">
+              <div className="flex flex-col items-center w-3.5 shrink-0 pt-[5px]">
+                <div className="size-[7px] rounded-full animate-pulse" style={{ background: "var(--surface-3)" }} />
+              </div>
+              <div className="flex flex-col flex-1 gap-1.5">
+                <div className="h-[10px] w-1/2 rounded-[3px] animate-pulse" style={{ background: "var(--surface-3)" }} />
+                <div className="h-[8px] w-3/4 rounded-[3px] animate-pulse" style={{ background: "var(--surface-3)" }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!loading && (!snapshots || snapshots.length === 0) && (
+        <div className="flex flex-col items-center justify-center gap-2 py-12 px-4 text-center">
+          <div style={{ color: "var(--fg-disabled)" }}><Icons.History size={20} /></div>
+          <p className="text-[11px] font-medium" style={{ color: "var(--fg-muted)" }}>
+            No revisions yet.
+          </p>
+          <p className="text-[11px] leading-[1.5]" style={{ color: "var(--fg-disabled)", textWrap: "pretty" } as React.CSSProperties}>
+            Revisions appear after the first generation.
+          </p>
+        </div>
+      )}
+
+      {!loading && snapshots && snapshots.length > 0 && (
+        <div className="px-3 py-1" role="list" aria-label="Revision history">
+          {snapshots.map((snap, idx) => {
+            const isCurrent = snap.id === viewingSnapshotId;
+            const isLatest = idx === 0;
+            const dotColor = isCurrent
+              ? "var(--accent)"
+              : SNAPSHOT_STATUS_COLOR[snap.status] ?? "var(--fg-disabled)";
+
+            return (
+              <div key={snap.id} className="flex gap-2.5 py-1.5" role="listitem">
+                {/* Timeline column */}
+                <div className="flex flex-col items-center w-3.5 shrink-0 pt-[5px]">
+                  <div
+                    className="shrink-0 rounded-full transition-[width,height,box-shadow] duration-[150ms]"
+                    style={{
+                      width: isCurrent ? 8 : 7,
+                      height: isCurrent ? 8 : 7,
+                      background: dotColor,
+                      boxShadow: isCurrent
+                        ? `0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent)`
+                        : "none",
+                    }}
+                  />
+                  {idx < snapshots.length - 1 && (
+                    <div
+                      className="w-px flex-1 mt-1"
+                      style={{ background: "var(--border)" }}
+                    />
+                  )}
+                </div>
+
+                {/* Info column */}
+                <button
+                  type="button"
+                  onClick={() => onViewSnapshot?.(isCurrent ? null : snap.id)}
+                  className="flex-1 min-w-0 text-left pb-1.5 rounded-[4px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
+                >
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span
+                      className="text-[11px] font-medium font-mono tabular-nums"
+                      style={{ color: isCurrent ? "var(--accent)" : "var(--fg-secondary)" }}
+                    >
+                      v{snap.version}
+                    </span>
+                    {isLatest && (
+                      <span
+                        className="text-[9px] font-semibold uppercase tracking-[0.06em] px-1 py-px rounded-[3px]"
+                        style={{
+                          background: "color-mix(in srgb, var(--accent) 15%, transparent)",
+                          color: "var(--accent)",
+                        }}
+                      >
+                        latest
+                      </span>
+                    )}
+                  </div>
+                  <div
+                    className="text-[10px] font-mono tabular-nums"
+                    style={{ color: "var(--fg-disabled)" }}
+                  >
+                    {relativeTimeSnapshot(snap.createdAt)}
+                  </div>
+                  <div
+                    className="text-[10px] capitalize mt-0.5"
+                    style={{ color: dotColor }}
+                  >
+                    {snap.status.toLowerCase()}
+                  </div>
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </>
   );
 }
@@ -495,6 +659,11 @@ export function RightPane({
   onSubmitText,
   onUploadFiles,
   onRetrySourceLoad,
+  onPreviewSource,
+  snapshots,
+  snapshotsLoading,
+  viewingSnapshotId,
+  onViewSnapshot,
 }: RightPaneProps) {
   return (
     <aside
@@ -557,10 +726,18 @@ export function RightPane({
             onSubmitText={onSubmitText}
             onUploadFiles={onUploadFiles}
             onRetry={onRetrySourceLoad}
+            onPreview={onPreviewSource}
           />
         )}
         {activeTab === "chat" && <ChatTab />}
-        {activeTab === "revisions" && <RevisionsTab />}
+        {activeTab === "revisions" && (
+          <RevisionsTab
+            snapshots={snapshots}
+            loading={snapshotsLoading}
+            viewingSnapshotId={viewingSnapshotId}
+            onViewSnapshot={onViewSnapshot}
+          />
+        )}
       </div>
     </aside>
   );

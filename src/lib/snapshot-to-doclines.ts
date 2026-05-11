@@ -11,17 +11,28 @@ const SECTION_LABELS = {
 type EvidenceRow =
   SnapshotWithDetails["claims"][number]["evidenceRefs"][number];
 
-function evidenceLine(row: EvidenceRow, index: number) {
-  const sourceName =
-    row.sourceAsset.displayLabel ??
-    row.sourceAsset.originalFileName ??
-    "Source";
+function buildSourceIndex(snapshot: SnapshotWithDetails): Map<string, number> {
+  const map = new Map<string, number>();
+  const allRefs = [
+    ...snapshot.claims.flatMap((c) => c.evidenceRefs),
+    ...snapshot.questions.flatMap((q) => q.evidenceRefs),
+  ];
+  for (const ref of allRefs) {
+    if (!map.has(ref.sourceAssetId)) map.set(ref.sourceAssetId, map.size + 1);
+  }
+  return map;
+}
 
+function evidenceLine(row: EvidenceRow, sourceIndex: Map<string, number>) {
+  const num = sourceIndex.get(row.sourceAssetId) ?? 1;
   return {
     sourceId: row.sourceAssetId,
-    ref: `S${index + 1}`,
+    ref: `S${num}`,
     quote: row.excerpt,
-    sourceName,
+    sourceName:
+      row.sourceAsset.displayLabel ??
+      row.sourceAsset.originalFileName ??
+      "Source",
   };
 }
 
@@ -40,6 +51,7 @@ export function snapshotToDocLines(
   if (!snapshot) return lines;
 
   const snapshotDetails = snapshot;
+  const sourceIndex = buildSourceIndex(snapshotDetails);
 
   lines.push({
     lineNum: lineNum++,
@@ -63,7 +75,7 @@ export function snapshotToDocLines(
         text: claim.text,
         reqId: claim.id,
         tags: [claim.confidence.toLowerCase()],
-        evidence: claim.evidenceRefs.map(evidenceLine),
+        evidence: claim.evidenceRefs.map((row) => evidenceLine(row, sourceIndex)),
       });
     }
     lines.push({ lineNum: lineNum++, type: "blank" });
@@ -85,7 +97,7 @@ export function snapshotToDocLines(
         text: question.text,
         reqId: question.id,
         tags: [question.status.toLowerCase()],
-        evidence: question.evidenceRefs.map(evidenceLine),
+        evidence: question.evidenceRefs.map((row) => evidenceLine(row, sourceIndex)),
       });
       lines.push({
         lineNum: lineNum++,

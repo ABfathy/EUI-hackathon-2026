@@ -320,7 +320,7 @@ export async function generateBriefFromBundle(
       config: {
         systemInstruction: SYSTEM_PROMPT,
         temperature: 0.2,
-        maxOutputTokens: 4096,
+        maxOutputTokens: 16384,
         responseMimeType: "application/json",
         responseJsonSchema,
       },

@@ -1,9 +1,9 @@
 import "./globals.css";
 
-import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata } from "next";
 
 import { ClerkModalGuard } from "@/components/clerk-modal-guard";
+import { Providers } from "@/components/providers";
 
 export const metadata: Metadata = {
   title: "RequireX",
@@ -16,13 +16,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" data-theme="dark" className="h-full antialiased" style={{ colorScheme: "dark", background: "#141517" }}>
+    <html
+      lang="en"
+      className="h-full antialiased"
+      suppressHydrationWarning
+    >
       <head>
         <meta name="theme-color" content="#141517" />
-        <link
-          rel="preconnect"
-          href="https://fonts.googleapis.com"
-        />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
           rel="preconnect"
           href="https://fonts.gstatic.com"
@@ -35,30 +36,12 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen text-foreground">
-        <ClerkProvider
-          appearance={{
-            variables: {
-              colorBackground: "#1c1e21",
-              colorText: "#efeee9",
-              colorTextSecondary: "#9a9a9e",
-              colorPrimary: "#7a9bb8",
-              colorNeutral: "#efeee9",
-              colorInputBackground: "#141517",
-              colorInputText: "#efeee9",
-              colorTextOnPrimaryBackground: "#06121e",
-              colorAlphaShade: "#efeee9",
-              borderRadius: "8px",
-              fontFamily: "Geist, system-ui, sans-serif",
-              fontSize: "14px",
-            },
-            elements: {
-              modalBackdrop: "!bg-black/60 !backdrop-blur-md",
-            },
-          }}
-        >
+        {/* Clerk bot-protection widget mount point — required for Smart CAPTCHA */}
+        <div id="clerk-captcha" style={{ display: "none" }} />
+        <Providers>
           <ClerkModalGuard />
           {children}
-        </ClerkProvider>
+        </Providers>
       </body>
     </html>
   );

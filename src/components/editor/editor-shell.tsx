@@ -1,8 +1,7 @@
 "use client";
 
+import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
-
-import { useTheme } from "@/lib/hooks/use-theme";
 
 import { CommandPalette } from "./command-palette";
 import { type AppState, DocView } from "./doc-view";
@@ -23,7 +22,9 @@ export function EditorShell({ session }: EditorShellProps) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [rightTab,    setRightTab]    = useState<RightTab>("sources");
   const [selectedReq, setSelectedReq] = useState<string | null>(null);
-  const { theme, toggle: toggleTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
+  const theme = (resolvedTheme ?? "dark") as "dark" | "light";
+  const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
   const appState: AppState = session ? "no-sources" : "no-session";
 
   /* ⌘K shortcut */

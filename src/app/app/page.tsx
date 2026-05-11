@@ -5,7 +5,7 @@ import { requireInternalAuth } from "@/server/auth";
 import { getSessionAssets } from "@/server/services/assets";
 import {
   ensureWorkspaceForUser,
-  listProjectsForUser,
+  listBundledProjectsForUser,
 } from "@/server/services/projects";
 
 type PageProps = {
@@ -25,42 +25,80 @@ export default async function InternalWorkspacePage({
   const { projectId: requestedProjectId } = await searchParams;
 
   await ensureWorkspaceForUser(clerkUserId);
-  const projects = await listProjectsForUser(clerkUserId);
+  const { projects, bundledProjects } = await listBundledProjectsForUser(
+    clerkUserId,
+    { limit: 5 },
+  );
 
   const activeProject =
     projects.find((p) => p.id === requestedProjectId) ?? projects[0] ?? null;
 
-  const session = activeProject
-    ? await prisma.intakeSession.findFirst({
-        where: { projectId: activeProject.id },
-        orderBy: { createdAt: "asc" },
-        select: { id: true, title: true },
-      })
+  const activeBundledProject = activeProject
+    ? bundledProjects.find((project) => project.id === activeProject.id) ?? null
     : null;
 
-  const dbAssets = session ? await getSessionAssets(session.id) : [];
-  const initialSources: SourceItem[] = dbAssets.map((a) => ({
-    id: a.id,
-    label: a.displayLabel ?? a.originalFileName ?? "Untitled source",
-    sourceType: mapSourceType(a.sourceType),
-    status: a.status,
-    createdAt: a.createdAt.toISOString(),
-  }));
+  const session =
+    activeBundledProject?.session ??
+    (activeProject
+      ? await prisma.intakeSession.findFirst({
+          where: { projectId: activeProject.id },
+          orderBy: { createdAt: "asc" },
+          select: { id: true, title: true },
+        })
+      : null);
 
-  const projectsForClient = projects.map((p) => ({
-    id: p.id,
-    name: p.name,
-    clientName: p.clientName,
-    updatedAt: p.updatedAt.toISOString(),
-  }));
+  let initialSources: SourceItem[] = [];
+  if (activeBundledProject) {
+    initialSources = activeBundledProject.assets.map((asset) => ({
+      id: asset.id,
+      label: asset.displayLabel ?? asset.originalFileName ?? "Untitled source",
+      sourceType: mapSourceType(asset.sourceType),
+      status: asset.status,
+      createdAt: asset.createdAt,
+    }));
+  } else {
+    const dbAssets = session ? await getSessionAssets(session.id) : [];
+    initialSources = dbAssets.map((asset) => ({
+      id: asset.id,
+      label: asset.displayLabel ?? asset.originalFileName ?? "Untitled source",
+      sourceType: mapSourceType(asset.sourceType),
+      status: asset.status,
+      createdAt: asset.createdAt.toISOString(),
+    }));
+  }
+
+  const initialProjectCache = Object.fromEntries(
+    bundledProjects.map((project) => [
+      project.id,
+      {
+        session: project.session,
+        sources: project.assets.map((asset) => ({
+          id: asset.id,
+          label:
+            asset.displayLabel ?? asset.originalFileName ?? "Untitled source",
+          sourceType: mapSourceType(asset.sourceType),
+          status: asset.status,
+          createdAt: asset.createdAt,
+        })),
+      },
+    ]),
+  );
+
+  if (activeProject && !initialProjectCache[activeProject.id]) {
+    initialProjectCache[activeProject.id] = {
+      session,
+      sources: initialSources,
+    };
+  }
 
   return (
     <EditorShell
       key={activeProject?.id ?? "no-project"}
-      projects={projectsForClient}
+      projects={projects}
       activeProjectId={activeProject?.id ?? null}
       session={session}
       initialSources={initialSources}
+      initialProjectCache={initialProjectCache}
     />
   );
 }

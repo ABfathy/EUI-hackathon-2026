@@ -10,7 +10,7 @@ import { useUploadThing } from "@/lib/uploadthing-client";
 
 import { CommandPalette } from "./command-palette";
 import { type AppState, DocView } from "./doc-view";
-import { type ProjectListItem,ProjectSidebar } from "./project-sidebar";
+import { type ProjectListItem, ProjectSidebar } from "./project-sidebar";
 import { ResizeHandle } from "./resize-handle";
 import { RightPane, type SourceItem, type SourceType } from "./right-pane";
 import { StatusBar } from "./statusbar";
@@ -34,12 +34,15 @@ interface EditorShellProps {
   activeProjectId?: string | null;
   session?: SessionRef;
   initialSources?: SourceItem[];
+  initialProjectCache?: SerializableProjectCache;
 }
 
 interface CacheEntry {
   session: SessionRef;
   sources: SourceItem[];
 }
+
+type SerializableProjectCache = Record<string, CacheEntry>;
 
 function mapSourceType(dbType: string): SourceType {
   if (dbType === "AUDIO") return "AUDIO";
@@ -80,6 +83,7 @@ export function EditorShell({
   activeProjectId: initialActiveProjectId = null,
   session: initialSession,
   initialSources = [],
+  initialProjectCache = {},
 }: EditorShellProps) {
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -106,16 +110,7 @@ export function EditorShell({
   const [sourcesError, setSourcesError] = useState<string | undefined>(undefined);
 
   const [projectCache, setProjectCache] = useState<Map<string, CacheEntry>>(
-    () => {
-      const m = new Map<string, CacheEntry>();
-      if (initialActiveProjectId) {
-        m.set(initialActiveProjectId, {
-          session: initialSession ?? null,
-          sources: initialSources,
-        });
-      }
-      return m;
-    },
+    () => new Map(Object.entries(initialProjectCache)),
   );
 
   const { resolvedTheme, setTheme } = useTheme();
@@ -130,8 +125,9 @@ export function EditorShell({
 
   const sessionId = session?.id;
 
-  /* Warm the client cache with every project's session + sources in one shot.
-     The currently-active project was seeded above and is not overwritten. */
+  /* Warm the remaining client cache with every project's session + sources in
+     one shot. Server-provided top projects and locally mutated active project
+     state are preserved by skipping already-cached ids. */
   useEffect(() => {
     const ctrl = new AbortController();
     fetch("/api/projects", { cache: "no-store", signal: ctrl.signal })

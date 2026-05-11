@@ -51,6 +51,7 @@
 - [ ] Wire `DocView` to live snapshot data instead of placeholder requirement lines
 - [ ] Render claims, questions, and evidence in the internal editor using snapshot-backed data
 - [ ] Replace public mock brief data with real share-link/snapshot-backed data
+-----
 - [ ] Wire public comment submission to `/api/public/briefs/[shareToken]/comments`
 - [ ] Wire public answer submission to `/api/public/briefs/[shareToken]/answers`
 - [ ] Wire public confirmation submission to `/api/public/briefs/[shareToken]/confirm`

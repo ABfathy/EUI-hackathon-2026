@@ -309,6 +309,9 @@ export function EditorShell({
       : "no-sources"
     : "no-session";
 
+  const activeProjectName =
+    projects.find((p) => p.id === activeProjectId)?.name ?? null;
+
   /* ⌘K shortcut */
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -435,6 +438,7 @@ export function EditorShell({
 
         <DocView
           appState={appState}
+          projectName={activeProjectName}
           sessionName={session?.title ?? null}
           selectedReq={selectedReq}
           onSelectReq={handleSelectReq}

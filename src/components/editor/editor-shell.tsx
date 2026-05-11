@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useState } from "react";
 
@@ -17,6 +18,7 @@ import { TitleBar } from "./titlebar";
 
 type RightTab = "sources" | "chat" | "revisions";
 
+type SessionRef = { id: string; title: string } | null;
 const SIDEBAR_DEFAULT = 220;
 const SIDEBAR_MIN = SIDEBAR_DEFAULT;
 const SIDEBAR_MAX = 480;
@@ -30,8 +32,13 @@ const clamp = (n: number, lo: number, hi: number) =>
 interface EditorShellProps {
   projects?: ProjectListItem[];
   activeProjectId?: string | null;
-  session?: { id: string; title: string } | null;
+  session?: SessionRef;
   initialSources?: SourceItem[];
+}
+
+interface CacheEntry {
+  session: SessionRef;
+  sources: SourceItem[];
 }
 
 function mapSourceType(dbType: string): SourceType {
@@ -49,6 +56,15 @@ type ApiAsset = {
   createdAt: string;
 };
 
+type BundledProject = {
+  id: string;
+  name: string;
+  clientName: string;
+  updatedAt: string;
+  session: SessionRef;
+  assets: ApiAsset[];
+};
+
 function assetToSource(a: ApiAsset): SourceItem {
   return {
     id: a.id,
@@ -61,10 +77,11 @@ function assetToSource(a: ApiAsset): SourceItem {
 
 export function EditorShell({
   projects = [],
-  activeProjectId = null,
-  session,
+  activeProjectId: initialActiveProjectId = null,
+  session: initialSession,
   initialSources = [],
 }: EditorShellProps) {
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [rightOpen,   setRightOpen]   = useState(true);
   const [sidebarWidth, setSidebarWidth] = usePersistentState(
@@ -79,9 +96,28 @@ export function EditorShell({
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [rightTab,    setRightTab]    = useState<RightTab>("sources");
   const [selectedReq, setSelectedReq] = useState<string | null>(null);
+
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(
+    initialActiveProjectId,
+  );
+  const [session, setSession] = useState<SessionRef>(initialSession ?? null);
   const [sources, setSources] = useState<SourceItem[]>(initialSources);
   const [sourcesLoading, setSourcesLoading] = useState(false);
   const [sourcesError, setSourcesError] = useState<string | undefined>(undefined);
+
+  const [projectCache, setProjectCache] = useState<Map<string, CacheEntry>>(
+    () => {
+      const m = new Map<string, CacheEntry>();
+      if (initialActiveProjectId) {
+        m.set(initialActiveProjectId, {
+          session: initialSession ?? null,
+          sources: initialSources,
+        });
+      }
+      return m;
+    },
+  );
+
   const { resolvedTheme, setTheme } = useTheme();
   const mounted = useMounted();
   const theme: "dark" | "light" | null = mounted
@@ -94,6 +130,30 @@ export function EditorShell({
 
   const sessionId = session?.id;
 
+  /* Warm the client cache with every project's session + sources in one shot.
+     The currently-active project was seeded above and is not overwritten. */
+  useEffect(() => {
+    const ctrl = new AbortController();
+    fetch("/api/projects", { cache: "no-store", signal: ctrl.signal })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { projects: BundledProject[] } | null) => {
+        if (!data) return;
+        setProjectCache((prev) => {
+          const next = new Map(prev);
+          for (const p of data.projects) {
+            if (next.has(p.id)) continue;
+            next.set(p.id, {
+              session: p.session,
+              sources: p.assets.map(assetToSource),
+            });
+          }
+          return next;
+        });
+      })
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, []);
+
   const refreshSources = useCallback(async () => {
     if (!sessionId) return;
     setSourcesError(undefined);
@@ -103,11 +163,19 @@ export function EditorShell({
       });
       if (!res.ok) throw new Error(`Failed (${res.status})`);
       const data: { assets: ApiAsset[] } = await res.json();
-      setSources(data.assets.map(assetToSource));
+      const fresh = data.assets.map(assetToSource);
+      setSources(fresh);
+      if (activeProjectId) {
+        setProjectCache((prev) => {
+          const next = new Map(prev);
+          next.set(activeProjectId, { session, sources: fresh });
+          return next;
+        });
+      }
     } catch {
       setSourcesError("Could not load sources.");
     }
-  }, [sessionId]);
+  }, [sessionId, activeProjectId, session]);
 
   const { startUpload, isUploading } = useUploadThing("mixedUploader", {
     onClientUploadComplete: () => {
@@ -135,10 +203,25 @@ export function EditorShell({
   const handleDeleteSource = useCallback(
     async (id: string) => {
       const prev = sources;
-      setSources((cur) => cur.filter((s) => s.id !== id));
+      const optimistic = prev.filter((s) => s.id !== id);
+      setSources(optimistic);
+      if (activeProjectId) {
+        setProjectCache((cache) => {
+          const next = new Map(cache);
+          next.set(activeProjectId, { session, sources: optimistic });
+          return next;
+        });
+      }
       const res = await fetch(`/api/assets/${id}`, { method: "DELETE" });
       if (!res.ok) {
         setSources(prev);
+        if (activeProjectId) {
+          setProjectCache((cache) => {
+            const next = new Map(cache);
+            next.set(activeProjectId, { session, sources: prev });
+            return next;
+          });
+        }
         setSourcesError(
           res.status === 409
             ? "Cannot delete a processed source."
@@ -146,15 +229,21 @@ export function EditorShell({
         );
       }
     },
-    [sources],
+    [sources, activeProjectId, session],
   );
 
   const handleRenameSource = useCallback(
     async (id: string, label: string) => {
       const prev = sources;
-      setSources((cur) =>
-        cur.map((s) => (s.id === id ? { ...s, label } : s)),
-      );
+      const optimistic = prev.map((s) => (s.id === id ? { ...s, label } : s));
+      setSources(optimistic);
+      if (activeProjectId) {
+        setProjectCache((cache) => {
+          const next = new Map(cache);
+          next.set(activeProjectId, { session, sources: optimistic });
+          return next;
+        });
+      }
       const res = await fetch(`/api/assets/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -162,10 +251,17 @@ export function EditorShell({
       });
       if (!res.ok) {
         setSources(prev);
+        if (activeProjectId) {
+          setProjectCache((cache) => {
+            const next = new Map(cache);
+            next.set(activeProjectId, { session, sources: prev });
+            return next;
+          });
+        }
         setSourcesError("Rename failed.");
       }
     },
-    [sources],
+    [sources, activeProjectId, session],
   );
 
   const handleUploadFiles = useCallback(
@@ -181,6 +277,30 @@ export function EditorShell({
       }
     },
     [sessionId, startUpload],
+  );
+
+  /* Soft client-side project switch. Cache hit → swap state + replace URL
+     silently (no Next.js routing → no server roundtrip). Cache miss →
+     full navigation; the page server component will re-render with fresh
+     props and the parent's `key` (in app/page.tsx) remounts EditorShell
+     so its local state re-seeds from the new props. */
+  const handleSwitchProject = useCallback(
+    (id: string) => {
+      if (id === activeProjectId) return;
+      const cached = projectCache.get(id);
+      if (cached) {
+        setActiveProjectId(id);
+        setSession(cached.session);
+        setSources(cached.sources);
+        setSourcesError(undefined);
+        if (typeof window !== "undefined") {
+          window.history.replaceState({}, "", `/app?projectId=${id}`);
+        }
+      } else {
+        router.push(`/app?projectId=${id}`);
+      }
+    },
+    [activeProjectId, projectCache, router],
   );
 
   const appState: AppState = session
@@ -296,6 +416,7 @@ export function EditorShell({
               projects={projects}
               activeProjectId={activeProjectId}
               onOpenPalette={() => setPaletteOpen(true)}
+              onSwitchProject={handleSwitchProject}
             />
           )}
           {sidebarOpen && (

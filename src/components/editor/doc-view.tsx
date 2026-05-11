@@ -461,6 +461,8 @@ export interface DocViewProps {
   generating?: boolean;
   onAttachFiles?: (files: File[]) => Promise<void>;
   lines?: DocLineData[];
+  viewingVersion?: number | null;
+  onExitVersionView?: () => void;
 }
 
 export function DocView({
@@ -474,6 +476,8 @@ export function DocView({
   generating = false,
   onAttachFiles,
   lines = [],
+  viewingVersion = null,
+  onExitVersionView,
 }: DocViewProps) {
   const canGenerate = appState === "ready" || appState === "no-sources";
   const generateDisabled =
@@ -548,6 +552,32 @@ export function DocView({
           </button>
         </div>
       </div>
+
+      {/* Past-version banner */}
+      {viewingVersion !== null && (
+        <div
+          className="flex items-center justify-between px-4 h-8 shrink-0 border-b text-[11px]"
+          style={{
+            background: "color-mix(in srgb, var(--warning) 10%, transparent)",
+            borderColor: "color-mix(in srgb, var(--warning) 30%, transparent)",
+            color: "var(--fg-secondary)",
+          }}
+          role="status"
+          aria-live="polite"
+        >
+          <span>
+            Viewing <span className="font-mono font-medium">v{viewingVersion}</span> — this is a past version
+          </span>
+          <button
+            type="button"
+            onClick={onExitVersionView}
+            className="text-[11px] underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
+            style={{ color: "var(--accent)" }}
+          >
+            Return to latest
+          </button>
+        </div>
+      )}
 
       {/* Doc scroll */}
       <div className="flex-1 overflow-y-auto py-4">

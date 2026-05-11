@@ -1,4 +1,5 @@
 import {
+  ArrowLeft,
   ArrowRight,
   Check,
   ChevronRight,
@@ -61,6 +62,7 @@ export const Icons = {
   Trash:        icon(Trash2),
   Check:        icon(Check),
   X:            icon(X),
+  ArrowLeft:    icon(ArrowLeft),
   ArrowRight:   icon(ArrowRight),
 } as const;
 

@@ -12,7 +12,7 @@ import { CommandPalette } from "./command-palette";
 import { type AppState, type DocLineData, DocView } from "./doc-view";
 import { type ProjectListItem, ProjectSidebar } from "./project-sidebar";
 import { ResizeHandle } from "./resize-handle";
-import { RightPane, type SourceItem, type SourceType } from "./right-pane";
+import { RightPane, type SnapshotListItem, type SourceItem, type SourceType } from "./right-pane";
 import { StatusBar } from "./statusbar";
 import { TitleBar } from "./titlebar";
 
@@ -123,6 +123,13 @@ export function EditorShell({
   const [sourcesError, setSourcesError] = useState<string | undefined>(
     undefined,
   );
+
+  const [snapshots, setSnapshots] = useState<SnapshotListItem[] | undefined>(undefined);
+  const [snapshotsLoading, setSnapshotsLoading] = useState(false);
+  const [snapshotsFetched, setSnapshotsFetched] = useState(false);
+  const [viewingSnapshotId, setViewingSnapshotId] = useState<string | null>(null);
+  const [viewingLines, setViewingLines] = useState<DocLineData[] | null>(null);
+  const [viewingVersion, setViewingVersion] = useState<number | null>(null);
 
   const [projectCache, setProjectCache] = useState<Map<string, CacheEntry>>(
     () => new Map(Object.entries(initialProjectCache)),
@@ -417,11 +424,12 @@ export function EditorShell({
   );
 
   const usesServerSnapshot = activeProjectId === initialActiveProjectId;
-  const displayLines = usesServerSnapshot
+  const baseLines = usesServerSnapshot
     ? lines
     : session?.title
       ? [{ lineNum: 1, type: "h1" as const, text: session.title }]
       : [];
+  const displayLines = viewingLines ?? baseLines;
   const displayHasSnapshot = usesServerSnapshot && hasSnapshot;
 
   const baseAppState: AppState = session
@@ -504,6 +512,48 @@ export function EditorShell({
     setRightTab("sources");
   }
 
+  /* Fetch snapshot list when revisions tab first opens */
+  useEffect(() => {
+    if (rightTab !== "revisions" || snapshotsFetched || !sessionId) return;
+    setSnapshotsLoading(true);
+    setSnapshotsFetched(true);
+    fetch(`/api/sessions/${sessionId}/snapshots`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { snapshots: SnapshotListItem[] } | null) => {
+        setSnapshots(data?.snapshots ?? []);
+      })
+      .catch(() => setSnapshots([]))
+      .finally(() => setSnapshotsLoading(false));
+  }, [rightTab, snapshotsFetched, sessionId]);
+
+  /* Reset snapshot view when session changes */
+  useEffect(() => {
+    setSnapshots(undefined);
+    setSnapshotsFetched(false);
+    setViewingSnapshotId(null);
+    setViewingLines(null);
+    setViewingVersion(null);
+  }, [sessionId]);
+
+  function handleViewSnapshot(id: string | null) {
+    if (!id) {
+      setViewingSnapshotId(null);
+      setViewingLines(null);
+      setViewingVersion(null);
+      return;
+    }
+    setViewingSnapshotId(id);
+    fetch(`/api/snapshots/${id}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { lines: DocLineData[]; version: number } | null) => {
+        if (data) {
+          setViewingLines(data.lines);
+          setViewingVersion(data.version);
+        }
+      })
+      .catch(() => { /* silently keep current lines on error */ });
+  }
+
   const colTemplate = [
     sidebarOpen ? `${sidebarWidth}px` : "0px",
     "1fr",
@@ -570,6 +620,8 @@ export function EditorShell({
           onGenerateBrief={sessionId ? handleGenerateBrief : undefined}
           generating={generating}
           lines={displayLines}
+          viewingVersion={viewingVersion}
+          onExitVersionView={() => handleViewSnapshot(null)}
         />
 
         <div className="relative overflow-hidden" style={{ minWidth: 0 }}>
@@ -598,6 +650,10 @@ export function EditorShell({
               onRenameSource={sessionId ? handleRenameSource : undefined}
               onUploadFiles={sessionId ? handleUploadFiles : undefined}
               onRetrySourceLoad={refreshSources}
+              snapshots={snapshots}
+              snapshotsLoading={snapshotsLoading}
+              viewingSnapshotId={viewingSnapshotId}
+              onViewSnapshot={handleViewSnapshot}
             />
           )}
         </div>

@@ -131,7 +131,7 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: () =
 /* ── Main panel ──────────────────────────────────────── */
 export function SettingsPanel({ onClose }: SettingsPanelProps) {
   const { user } = useUser();
-  const { signOut } = useClerk();
+  const { signOut, openUserProfile } = useClerk();
   const { theme, toggle: toggleTheme } = useTheme();
   const router = useRouter();
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -220,6 +220,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                   alt={displayName}
                   width={36}
                   height={36}
+                  priority
                   className="rounded-full shrink-0 object-cover"
                   style={{ border: "1px solid var(--border-strong)" }}
                 />
@@ -253,15 +254,14 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
             </div>
 
             <Row icon={<Icons.Settings size={13} />} label="Manage account">
-              <a
-                href="https://accounts.clerk.dev/user"
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
+                onClick={() => { onClose(); openUserProfile(); }}
                 className="text-[11px] transition-colors duration-[120ms] hover:text-[var(--fg-secondary)] focus-visible:outline-none focus-visible:underline cursor-pointer"
                 style={{ color: "var(--fg-muted)" }}
               >
-                Clerk ↗
-              </a>
+                Open ↗
+              </button>
             </Row>
           </Section>
 

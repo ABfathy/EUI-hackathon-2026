@@ -300,7 +300,7 @@ function TextPasteArea({ onSubmit, onCancel }: TextPasteAreaProps) {
       />
 
       <div
-        className="flex items-center justify-between px-2.5 py-2 border-t gap-2"
+        className="flex items-center justify-between px-3 py-2 border-t gap-2"
         style={{ borderColor: "var(--border)" }}
       >
         <span

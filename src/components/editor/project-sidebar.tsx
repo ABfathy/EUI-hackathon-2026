@@ -1,7 +1,8 @@
 "use client";
 
+import { useUser } from "@clerk/nextjs";
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 import { SettingsPanel } from "@/components/editor/settings-panel";
 import { Icons, RxLogo } from "@/components/icons";
@@ -14,6 +15,13 @@ interface ProjectSidebarProps {
 
 export function ProjectSidebar({ onOpenPalette }: ProjectSidebarProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const { user } = useUser();
+
+  const preloadAvatar = useCallback(() => {
+    if (!user?.imageUrl) return;
+    const img = new window.Image();
+    img.src = user.imageUrl;
+  }, [user]);
 
   return (
     <>
@@ -83,6 +91,7 @@ export function ProjectSidebar({ onOpenPalette }: ProjectSidebarProps) {
           <IconButton
             label="Open settings"
             onClick={() => setSettingsOpen(true)}
+            onMouseEnter={preloadAvatar}
           >
             <Icons.Settings size={13} />
           </IconButton>

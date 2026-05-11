@@ -1,6 +1,6 @@
 # Next Steps
 
-Last reviewed on 2026-05-10.
+Last reviewed on 2026-05-11.
 
 This document turns the current repo state into the smallest practical implementation plan. It is intentionally biased toward hackathon demo completion, not architectural perfection.
 
@@ -30,14 +30,17 @@ What is still missing is the part that makes the product demoable:
 
 Goal: an internal user can open the app, select a seeded project/session, add source material, trigger generation, and see a result.
 
-Required work:
+Done as of 2026-05-11:
 
-- add a minimal project/session loader for the internal app
-- replace empty sidebar state with seeded or queried project/session items
-- wire the right pane source list to `GET /api/sessions/[sessionId]/assets`
-- wire pasted-text submission to `POST /api/sessions/[sessionId]/assets`
-- wire file upload controls to UploadThing routes
-- surface asset status, filename, and delete/rename actions
+- [x] minimal project/session loader for the internal app (`src/app/app/page.tsx` reads `?projectId=` and loads workspace/projects/session/assets)
+- [x] real sidebar list of `Project` rows with active highlighting and a "New project" form
+- [x] right-pane Sources tab wired to `GET /api/sessions/[sessionId]/assets`
+- [x] pasted-text submission wired to `POST /api/sessions/[sessionId]/assets`
+- [x] file upload wired to UploadThing `mixedUploader` via `@uploadthing/react` (both the Sources tab "Upload files" button and the chat-bar paperclip)
+- [x] asset status, label, delete (with 409 guard), and rename surfaced
+
+Still to do here:
+
 - wire the generate button or composer action to `POST /api/generate`
 
 Why first:
@@ -173,10 +176,9 @@ Do not cut:
 
 These are the next concrete tasks I would assign now:
 
-1. Wire the internal app to a real seeded project/session and session assets.
-2. Add a real “Generate brief” trigger in the workspace UI.
-3. Implement text-first snapshot generation and persistence in the Inngest function.
-4. Replace mock internal brief content with snapshot-backed rendering.
-5. Add share-link creation and snapshot loading on the public brief route.
-6. Connect public comment, answer, and confirm actions from the client page.
-7. Add one internal and one public end-to-end test around the seeded demo flow.
+1. Add a real “Generate brief” trigger in the workspace UI (Sources → Generate).
+2. Implement text-first snapshot generation and persistence in the Inngest function.
+3. Replace mock internal brief content (DocView) with snapshot-backed rendering.
+4. Add share-link creation and snapshot loading on the public brief route.
+5. Connect public comment, answer, and confirm actions from the client page.
+6. Add one internal and one public end-to-end test around the seeded demo flow.

@@ -301,8 +301,10 @@ function TextPasteArea({ onSubmit, onCancel }: TextPasteAreaProps) {
     try {
       await onSubmit(value.trim());
       onCancel();
-    } catch {
-      setError("Failed to save. Try again.");
+    } catch (error) {
+      setError(
+        error instanceof Error ? error.message : "Failed to save. Try again.",
+      );
     } finally {
       setSubmitting(false);
     }

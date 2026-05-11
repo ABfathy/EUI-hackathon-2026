@@ -27,6 +27,18 @@ type ApiSourceAsset = {
   createdAt: string;
 };
 
+async function readApiError(response: Response, fallback: string) {
+  try {
+    const payload = (await response.json()) as {
+      error?: string;
+      message?: string;
+    };
+    return payload.message ?? payload.error ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 function mapSourceType(sourceType: ApiSourceAsset["sourceType"]): SourceType {
   return sourceType;
 }
@@ -124,7 +136,21 @@ export function EditorShell({ session }: EditorShellProps) {
 
   async function handleSubmitText(text: string) {
     if (!session) {
-      throw new Error("No active session.");
+      const response = await fetch("/api/preview-messy-text", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ textContent: text }),
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          await readApiError(response, "Failed to send prompt preview event."),
+        );
+      }
+
+      return;
     }
 
     const response = await fetch(`/api/sessions/${session.id}/assets`, {
@@ -136,7 +162,7 @@ export function EditorShell({ session }: EditorShellProps) {
     });
 
     if (!response.ok) {
-      throw new Error("Failed to save source.");
+      throw new Error(await readApiError(response, "Failed to save source."));
     }
 
     await loadSources();
@@ -148,7 +174,7 @@ export function EditorShell({ session }: EditorShellProps) {
     });
 
     if (!response.ok) {
-      throw new Error("Failed to delete source.");
+      throw new Error(await readApiError(response, "Failed to delete source."));
     }
 
     await loadSources();
@@ -164,7 +190,7 @@ export function EditorShell({ session }: EditorShellProps) {
     });
 
     if (!response.ok) {
-      throw new Error("Failed to rename source.");
+      throw new Error(await readApiError(response, "Failed to rename source."));
     }
 
     await loadSources();

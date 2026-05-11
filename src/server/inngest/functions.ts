@@ -3,147 +3,53 @@ import { z } from "zod";
 
 import { inngest } from "@/server/inngest/client";
 import { INNGEST_EVENTS } from "@/server/inngest/events";
-import {
-  BriefPipelineError,
-  runTextBriefGeneration,
-} from "@/server/services/brief-pipeline";
 
-const generationEventDataSchema = z.object({
-  jobId: z.string().min(1),
+const textBriefRequestedDataSchema = z.object({
+  assetId: z.string().min(1),
   sessionId: z.string().min(1),
   requestedBy: z.string().min(1),
   requestedAt: z.string().datetime(),
+  systemPrompt: z.string().min(1),
+  textContent: z.string().min(1),
 });
 
-const regenerationEventDataSchema = generationEventDataSchema.extend({
-  sourceSnapshotId: z.string().min(1),
-});
-
-function errorCode(error: unknown) {
-  if (error instanceof BriefPipelineError) {
-    return error.code;
-  }
-
-  if (error instanceof z.ZodError) {
-    return "INVALID_GENERATION_CONTRACT";
-  }
-
-  return "BRIEF_PIPELINE_FAILED";
-}
-
-function errorMessage(error: unknown) {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return "Brief generation failed.";
-}
-
-async function markPipelineFailed(jobId: string, error: unknown) {
-  const { prisma } = await import("@/lib/prisma");
-
-  await prisma.processingJob.update({
-    where: {
-      id: jobId,
-    },
-    data: {
-      status: "FAILED",
-      completedAt: new Date(),
-      errorCode: errorCode(error),
-      errorMessage: errorMessage(error),
-    },
-  });
-}
-
-export const generateBriefSnapshot = inngest.createFunction(
+export const generateBriefFromText = inngest.createFunction(
   {
-    id: "brief-generate-snapshot",
-    name: "Generate brief snapshot",
+    id: "generate-brief-from-text",
+    name: "Generate brief from text",
     triggers: [
       {
-        event: INNGEST_EVENTS.BRIEF_GENERATION_REQUESTED,
+        event: INNGEST_EVENTS.TEXT_BRIEF_REQUESTED,
       },
     ],
   },
   async ({ event, step }) => {
-    const data = generationEventDataSchema.parse(event.data);
+    const data = textBriefRequestedDataSchema.parse(event.data);
 
-    await step.run("mark-generation-job-running", async () => {
-      const { prisma } = await import("@/lib/prisma");
-
-      return prisma.processingJob.update({
-        where: {
-          id: data.jobId,
-        },
-        data: {
-          status: "RUNNING",
-          startedAt: new Date(),
-          attemptCount: {
-            increment: 1,
-          },
-        },
-      });
-    });
-
-    try {
-      return await step.run("run-text-first-generation-pipeline", async () =>
-        runTextBriefGeneration(data),
-      );
-    } catch (error) {
-      await step.run("mark-generation-job-failed", async () => {
-        await markPipelineFailed(data.jobId, error);
-      });
-
-      throw new NonRetriableError(errorMessage(error));
-    }
-  },
-);
-
-export const regenerateBriefSnapshot = inngest.createFunction(
-  {
-    id: "brief-regenerate-snapshot",
-    name: "Regenerate brief snapshot",
-    triggers: [
-      {
-        event: INNGEST_EVENTS.BRIEF_REGENERATION_REQUESTED,
+    const promptPayload = await step.run("build-ai-request", async () => ({
+      model: "unconfigured-ai-provider",
+      systemPrompt: data.systemPrompt,
+      userText: data.textContent,
+      metadata: {
+        assetId: data.assetId,
+        sessionId: data.sessionId,
+        requestedBy: data.requestedBy,
+        requestedAt: data.requestedAt,
       },
-    ],
-  },
-  async ({ event, step }) => {
-    const data = regenerationEventDataSchema.parse(event.data);
+    }));
 
-    await step.run("mark-regeneration-job-running", async () => {
-      const { prisma } = await import("@/lib/prisma");
-
-      return prisma.processingJob.update({
-        where: {
-          id: data.jobId,
-        },
-        data: {
-          status: "RUNNING",
-          startedAt: new Date(),
-          attemptCount: {
-            increment: 1,
-          },
-        },
-      });
+    await step.run("send-to-ai", async () => {
+      throw new NonRetriableError(
+        `AI provider is not configured. Would have sent: ${JSON.stringify(
+          promptPayload,
+        )}`,
+      );
     });
 
-    try {
-      return await step.run("run-text-first-regeneration-pipeline", async () =>
-        runTextBriefGeneration(data),
-      );
-    } catch (error) {
-      await step.run("mark-regeneration-job-failed", async () => {
-        await markPipelineFailed(data.jobId, error);
-      });
-
-      throw new NonRetriableError(errorMessage(error));
-    }
+    return step.run("persist-ai-response", async () => ({
+      skipped: true,
+    }));
   },
 );
 
-export const inngestFunctions = [
-  generateBriefSnapshot,
-  regenerateBriefSnapshot,
-];
+export const inngestFunctions = [generateBriefFromText];

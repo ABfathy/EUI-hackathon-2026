@@ -558,6 +558,7 @@ export function EditorShell({
   );
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (sessionId) void loadRevisions(sessionId);
   }, [sessionId, loadRevisions]);
 
@@ -816,6 +817,7 @@ export function EditorShell({
   /* Reset snapshot state when session changes */
   useEffect(() => {
     if (!sessionId) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSnapshots([]);
     setViewingVersion(null);
     setClientLines(null);

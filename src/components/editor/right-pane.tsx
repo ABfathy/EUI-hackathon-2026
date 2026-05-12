@@ -561,33 +561,6 @@ function ChatTab({ messages }: { messages?: ChatMessage[] }) {
   );
 }
 
-/* ── Status chip for snapshot ───────────────────────────── */
-const SNAPSHOT_STATUS_COLOR: Record<string, string> = {
-  DRAFT: "var(--fg-disabled)",
-  SHARED: "var(--info)",
-  CONFIRMED: "var(--success)",
-  SUPERSEDED: "var(--fg-disabled)",
-};
-
-function relativeTimeSnapshot(date: Date | string): string {
-  try {
-    const diffMinutes = Math.round(
-      (new Date(date).getTime() - Date.now()) / 60_000,
-    );
-    if (Math.abs(diffMinutes) >= 60 * 24) {
-      const days = Math.round(diffMinutes / (60 * 24));
-      return new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(days, "day");
-    }
-    if (Math.abs(diffMinutes) >= 60) {
-      const hours = Math.round(diffMinutes / 60);
-      return new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(hours, "hour");
-    }
-    return new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(diffMinutes, "minute");
-  } catch {
-    return "";
-  }
-}
-
 /* ── RevisionsTab ───────────────────────────────────────── */
 function relRevTime(dateStr: string): string {
   try {

@@ -81,6 +81,7 @@ describe("source processing", () => {
       vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
+        headers: new Headers({ "content-length": String(pdf.length) }),
         arrayBuffer: async () => toArrayBuffer(pdf),
       }),
     );
@@ -120,6 +121,7 @@ describe("source processing", () => {
       vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
+        headers: new Headers({ "content-length": String(audio.length) }),
         arrayBuffer: async () => toArrayBuffer(audio),
       }),
     );

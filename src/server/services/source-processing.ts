@@ -10,6 +10,7 @@ import type {
 } from "../../../generated/prisma/client";
 
 const MAX_CHUNK_CHARS = 1_800;
+const PDF_TEXT_PARSER_VERSION = "built-in-pdf-text-v2";
 
 type FileSourceType = Extract<SourceType, "PDF" | "AUDIO">;
 
@@ -216,11 +217,13 @@ export async function processPdfAsset(
   input: ProcessSourceInput,
 ): Promise<SourceProcessingResult> {
   const asset = await loadFileAsset(input, "PDF");
+  const providerMetadata = asMetadataObject(asset.providerMetadata);
 
   if (
     asset.status === "PROCESSED" &&
     asset.textContent?.trim() &&
-    asset.chunks.length > 0
+    asset.chunks.length > 0 &&
+    providerMetadata.parser === PDF_TEXT_PARSER_VERSION
   ) {
     return {
       assetId: asset.id,
@@ -257,8 +260,8 @@ export async function processPdfAsset(
         processedAt: new Date(),
         errorMessage: null,
         providerMetadata: {
-          ...asMetadataObject(asset.providerMetadata),
-          parser: "built-in-pdf-text",
+          ...providerMetadata,
+          parser: PDF_TEXT_PARSER_VERSION,
           processedBy: input.requestedBy ?? "system",
         } as Prisma.InputJsonValue,
       },
@@ -351,10 +354,7 @@ export async function loadProcessableFileSources(sessionId: string) {
     where: {
       sessionId,
       sourceType: { in: ["PDF", "AUDIO"] },
-      OR: [
-        { status: { in: ["UPLOADED", "FAILED"] } },
-        { status: "PROCESSED", chunks: { none: {} } },
-      ],
+      status: { in: ["UPLOADED", "FAILED", "PROCESSED"] },
     },
     select: {
       id: true,

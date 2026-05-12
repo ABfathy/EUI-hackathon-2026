@@ -2,6 +2,7 @@ import { inflateSync } from "node:zlib";
 
 const STREAM_START_PATTERN = /<<(?:.|\n|\r)*?>>\s*stream\r?\n?/g;
 const TEXT_OBJECT_PATTERN = /BT(?:.|\n|\r)*?ET/g;
+const SUPPORTED_FILTER_PATTERN = /\/(ASCII85Decode|A85|FlateDecode|Fl)\b/g;
 
 function trimStreamBytes(bytes: Buffer) {
   let start = 0;
@@ -91,14 +92,80 @@ function extractLiteralStrings(input: string) {
   return strings;
 }
 
+function decodeAscii85(input: Buffer) {
+  const chars = input
+    .toString("latin1")
+    .replace(/^<~/, "")
+    .replace(/~>[\s\S]*$/, "")
+    .replace(/\s/g, "");
+  const bytes: number[] = [];
+  let group: number[] = [];
+
+  function flush(final = false) {
+    if (group.length === 0) return;
+    const originalLength = group.length;
+    if (final) {
+      while (group.length < 5) group.push(117); // "u"
+    }
+    if (group.length !== 5) return;
+
+    let value = 0;
+    for (const charCode of group) {
+      value = value * 85 + (charCode - 33);
+    }
+
+    const decoded = [
+      (value >>> 24) & 0xff,
+      (value >>> 16) & 0xff,
+      (value >>> 8) & 0xff,
+      value & 0xff,
+    ];
+    bytes.push(...decoded.slice(0, final ? originalLength - 1 : 4));
+    group = [];
+  }
+
+  for (let i = 0; i < chars.length; i++) {
+    const char = chars[i];
+    if (char === "z" && group.length === 0) {
+      bytes.push(0, 0, 0, 0);
+      continue;
+    }
+
+    const code = char?.charCodeAt(0) ?? 0;
+    if (code < 33 || code > 117) continue;
+    group.push(code);
+    if (group.length === 5) flush();
+  }
+
+  flush(true);
+  return Buffer.from(bytes);
+}
+
+function filtersFromDictionary(dict: string) {
+  return Array.from(
+    dict.matchAll(SUPPORTED_FILTER_PATTERN),
+    (match) => match[1],
+  );
+}
+
 function decodeStream(dict: string, stream: Buffer) {
-  const bytes = trimStreamBytes(stream);
-  if (!dict.includes("/FlateDecode")) {
+  let bytes = trimStreamBytes(stream);
+  const filters = filtersFromDictionary(dict);
+
+  if (filters.length === 0) {
     return bytes.toString("latin1");
   }
 
   try {
-    return inflateSync(bytes).toString("latin1");
+    for (const filter of filters) {
+      if (filter === "ASCII85Decode" || filter === "A85") {
+        bytes = decodeAscii85(bytes);
+      } else if (filter === "FlateDecode" || filter === "Fl") {
+        bytes = inflateSync(bytes);
+      }
+    }
+
+    return bytes.toString("latin1");
   } catch {
     return "";
   }
@@ -121,6 +188,7 @@ export function extractTextFromPdfBytes(pdfBytes: Buffer) {
   const extracted: string[] = [];
   let match: RegExpExecArray | null;
 
+  STREAM_START_PATTERN.lastIndex = 0;
   while ((match = STREAM_START_PATTERN.exec(pdf))) {
     const streamStart = match.index + match[0].length;
     const streamEnd = pdf.indexOf("endstream", streamStart);
@@ -138,10 +206,6 @@ export function extractTextFromPdfBytes(pdfBytes: Buffer) {
     }
 
     STREAM_START_PATTERN.lastIndex = streamEnd + "endstream".length;
-  }
-
-  if (extracted.length === 0) {
-    extracted.push(...extractLiteralStrings(pdf));
   }
 
   return normalizeExtractedText(extracted.join("\n"));

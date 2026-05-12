@@ -74,9 +74,19 @@ async function downloadAssetBytes(
     throw new Error("Source asset does not have a downloadable file URL.");
   }
 
-  const response = await fetch(url);
+  const parsed = new URL(url);
+  if (parsed.hostname !== "utfs.io") {
+    throw new Error(`Untrusted asset URL host: ${parsed.hostname}`);
+  }
+
+  const response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
   if (!response.ok) {
     throw new Error(`Failed to download source asset (${response.status}).`);
+  }
+
+  const contentLength = Number(response.headers.get("content-length") ?? 0);
+  if (contentLength > 100 * 1024 * 1024) {
+    throw new Error("Source file exceeds the 100 MB size limit.");
   }
 
   return Buffer.from(await response.arrayBuffer());

@@ -9,13 +9,13 @@ import {
   type SourceBundle,
 } from "@/server/services/google-genai";
 import { normalizeTextToChunks } from "@/server/services/source-normalization";
-import { BriefOutputSchema } from "@/server/validators/brief-output";
 import type {
   BriefClaimOutput,
   BriefEvidenceOutput,
   BriefOutput,
   BriefQuestionOutput,
 } from "@/server/validators/brief-output";
+import { BriefOutputSchema } from "@/server/validators/brief-output";
 
 import type {
   BriefClaimSection,

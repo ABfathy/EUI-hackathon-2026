@@ -77,6 +77,10 @@ export interface RightPaneProps {
   snapshotsLoading?: boolean;
   viewingSnapshotId?: string | null;
   onViewSnapshot?: (id: string | null) => Promise<void>;
+  onCompareSnapshots?: (
+    first: { id: string; version: number },
+    second: { id: string; version: number },
+  ) => void;
 }
 
 const TABS: { id: RightTab; label: string }[] = [
@@ -109,7 +113,12 @@ function EmptyState({
       <div style={{ color: "var(--fg-disabled)" }}>{icon}</div>
       <p
         className="text-[11px] leading-[1.5] whitespace-pre-line"
-        style={{ color: "var(--fg-muted)", textWrap: "pretty" } as React.CSSProperties}
+        style={
+          {
+            color: "var(--fg-muted)",
+            textWrap: "pretty",
+          } as React.CSSProperties
+        }
       >
         {message}
       </p>
@@ -162,8 +171,8 @@ interface SourceRowProps {
 }
 
 function SourceRow({ item, onDelete, onRename, onPreview }: SourceRowProps) {
-  const [editing, setEditing]     = useState(false);
-  const [editVal, setEditVal]     = useState(item.label);
+  const [editing, setEditing] = useState(false);
+  const [editVal, setEditVal] = useState(item.label);
   const [confirming, setConfirming] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -236,7 +245,10 @@ function SourceRow({ item, onDelete, onRename, onPreview }: SourceRowProps) {
         )}
         <span
           className="text-[10px] truncate tabular-nums"
-          style={{ color: "var(--fg-disabled)", fontFamily: "var(--font-mono)" }}
+          style={{
+            color: "var(--fg-disabled)",
+            fontFamily: "var(--font-mono)",
+          }}
         >
           {relTime}
         </span>
@@ -259,10 +271,14 @@ function SourceRow({ item, onDelete, onRename, onPreview }: SourceRowProps) {
             <button
               type="button"
               aria-label="Confirm delete"
-              onClick={() => { onDelete?.(item.id); setConfirming(false); }}
+              onClick={() => {
+                onDelete?.(item.id);
+                setConfirming(false);
+              }}
               className="inline-flex items-center justify-center size-[22px] rounded-[4px] transition-[transform,background-color] duration-[120ms] active:scale-[0.96] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
               style={{
-                background: "color-mix(in srgb, var(--danger) 15%, transparent)",
+                background:
+                  "color-mix(in srgb, var(--danger) 15%, transparent)",
                 color: "var(--danger)",
               }}
             >
@@ -274,7 +290,7 @@ function SourceRow({ item, onDelete, onRename, onPreview }: SourceRowProps) {
             {/* Status dot — sits in place, cross-fades with action buttons */}
             <span
               className={`absolute inset-0 m-auto size-[6px] rounded-full transition-opacity duration-[150ms] pointer-events-none ${
-                onPreview ?? onDelete
+                (onPreview ?? onDelete)
                   ? "opacity-60 group-hover:opacity-0"
                   : "opacity-60"
               }`}
@@ -433,7 +449,10 @@ function SourcesTab({
       )}
 
       {/* Add buttons */}
-      <div className="px-3 pb-3 pt-2 mt-auto border-t" style={{ borderColor: "var(--border)" }}>
+      <div
+        className="px-3 pb-3 pt-2 mt-auto border-t"
+        style={{ borderColor: "var(--border)" }}
+      >
         <div className="flex items-center gap-1.5">
           <button
             type="button"
@@ -480,7 +499,6 @@ function SourcesTab({
           onClose={() => setPasteOpen(false)}
         />
       )}
-
     </div>
   );
 }
@@ -523,9 +541,13 @@ function ChatTab({ messages }: { messages?: ChatMessage[] }) {
                 {msg.selectionText && (
                   <div
                     className="text-[10px] mb-1.5 pb-1.5 border-b opacity-75 italic truncate"
-                    style={{ borderColor: "color-mix(in srgb, var(--accent-fg) 30%, transparent)" }}
+                    style={{
+                      borderColor:
+                        "color-mix(in srgb, var(--accent-fg) 30%, transparent)",
+                    }}
                   >
-                    Re: {msg.selectionText.slice(0, 70)}{msg.selectionText.length > 70 ? "…" : ""}
+                    Re: {msg.selectionText.slice(0, 70)}
+                    {msg.selectionText.length > 70 ? "…" : ""}
                   </div>
                 )}
                 {msg.userMessage}
@@ -541,12 +563,20 @@ function ChatTab({ messages }: { messages?: ChatMessage[] }) {
                   border: "1px solid var(--border)",
                 }}
               >
-                <Icons.Check size={10} aria-hidden="true" className="shrink-0" style={{ color: "var(--success)" }} />
+                <Icons.Check
+                  size={10}
+                  aria-hidden="true"
+                  className="shrink-0"
+                  style={{ color: "var(--success)" }}
+                />
                 <span>
                   Brief updated →{" "}
                   <span
                     className="font-medium"
-                    style={{ fontFamily: "var(--font-mono)", color: "var(--accent)" }}
+                    style={{
+                      fontFamily: "var(--font-mono)",
+                      color: "var(--accent)",
+                    }}
                   >
                     v{msg.version}
                   </span>
@@ -559,33 +589,6 @@ function ChatTab({ messages }: { messages?: ChatMessage[] }) {
       </div>
     </>
   );
-}
-
-/* ── Status chip for snapshot ───────────────────────────── */
-const SNAPSHOT_STATUS_COLOR: Record<string, string> = {
-  DRAFT: "var(--fg-disabled)",
-  SHARED: "var(--info)",
-  CONFIRMED: "var(--success)",
-  SUPERSEDED: "var(--fg-disabled)",
-};
-
-function relativeTimeSnapshot(date: Date | string): string {
-  try {
-    const diffMinutes = Math.round(
-      (new Date(date).getTime() - Date.now()) / 60_000,
-    );
-    if (Math.abs(diffMinutes) >= 60 * 24) {
-      const days = Math.round(diffMinutes / (60 * 24));
-      return new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(days, "day");
-    }
-    if (Math.abs(diffMinutes) >= 60) {
-      const hours = Math.round(diffMinutes / 60);
-      return new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(hours, "hour");
-    }
-    return new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(diffMinutes, "minute");
-  } catch {
-    return "";
-  }
 }
 
 /* ── RevisionsTab ───────────────────────────────────────── */
@@ -608,13 +611,20 @@ function RevisionsTab({
   loading,
   viewingSnapshotId,
   onViewSnapshot,
+  onCompareSnapshots,
 }: {
   snapshots?: SnapshotSummary[];
   loading?: boolean;
   viewingSnapshotId?: string | null;
   onViewSnapshot?: (id: string | null) => Promise<void>;
+  onCompareSnapshots?: (
+    first: { id: string; version: number },
+    second: { id: string; version: number },
+  ) => void;
 }) {
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [compareBaseId, setCompareBaseId] = useState<string | null>(null);
+  const [compareError, setCompareError] = useState<string | null>(null);
 
   async function handleRevisionClick(id: string) {
     if (!onViewSnapshot || loadingId) return;
@@ -638,8 +648,14 @@ function RevisionsTab({
                 style={{ background: "var(--surface-3)" }}
               />
               <div className="flex flex-col gap-1.5 flex-1">
-                <div className="h-[10px] w-2/3 rounded animate-pulse" style={{ background: "var(--surface-3)" }} />
-                <div className="h-[8px] w-1/2 rounded animate-pulse" style={{ background: "var(--surface-3)" }} />
+                <div
+                  className="h-[10px] w-2/3 rounded animate-pulse"
+                  style={{ background: "var(--surface-3)" }}
+                />
+                <div
+                  className="h-[8px] w-1/2 rounded animate-pulse"
+                  style={{ background: "var(--surface-3)" }}
+                />
               </div>
             </div>
           ))}
@@ -654,11 +670,28 @@ function RevisionsTab({
         <SectionLabel>Revision history</SectionLabel>
         <EmptyState
           icon={<Icons.History size={20} />}
-          message={"No revisions yet.\nRevisions appear after the first generation."}
+          message={
+            "No revisions yet.\nRevisions appear after the first generation."
+          }
         />
       </>
     );
   }
+
+  const comparableSnapshots = Array.from(
+    new Map(
+      snapshots
+        .filter((snap) => snap.id && snap.version != null)
+        .map((snap) => [
+          snap.id!,
+          {
+            id: snap.id!,
+            version: snap.version!,
+            label: `Version ${snap.version}`,
+          },
+        ]),
+    ).values(),
+  );
 
   return (
     <>
@@ -688,63 +721,191 @@ function RevisionsTab({
           const isLast = idx === snapshots.length - 1;
           const isChatRevision = snap.trigger === "chat";
           const isLoadingThis = loadingId === snap.id;
-          const isClickable = !!snap.id && !!onViewSnapshot && !isActive && !loadingId;
+          const isClickable =
+            !!snap.id && !!onViewSnapshot && !isActive && !loadingId;
+          const canCompare =
+            !!snap.id && snap.version != null && !!onCompareSnapshots;
+          const compareOpen = canCompare && compareBaseId === snap.id;
+          const compareOptions = comparableSnapshots.filter(
+            (item) => item.id !== snap.id,
+          );
           return (
-            <div
-              key={snap.id ?? `rev-${idx}`}
-              className={`flex items-start gap-3 mb-2 rounded-[5px] px-1 -mx-1 transition-colors duration-[100ms] ${isClickable ? "cursor-pointer hover:bg-[var(--surface-3)]" : ""} ${isLoadingThis ? "opacity-70" : ""}`}
-              role={isClickable ? "button" : undefined}
-              tabIndex={isClickable ? 0 : undefined}
-              onClick={isClickable ? () => void handleRevisionClick(snap.id!) : undefined}
-              onKeyDown={isClickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); void handleRevisionClick(snap.id!); } } : undefined}
-            >
-              {/* Timeline dot + line */}
-              <div className="flex flex-col items-center shrink-0 mt-[3px]">
-                <div
-                  className={`size-[8px] rounded-full shrink-0 ${isLoadingThis ? "animate-pulse" : ""}`}
-                  style={{
-                    background: isActive ? "var(--accent)" : isLoadingThis ? "var(--warning)" : isChatRevision ? "var(--info)" : "var(--fg-muted)",
-                    boxShadow: isActive ? "0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent)" : undefined,
-                  }}
-                />
-                {!isLast && (
+            <div key={snap.id ?? `rev-${idx}`}>
+              <div
+                className={`flex items-start gap-3 mb-2 rounded-[5px] px-1 -mx-1 transition-colors duration-[100ms] ${isClickable ? "cursor-pointer hover:bg-[var(--surface-3)]" : ""} ${isLoadingThis ? "opacity-70" : ""}`}
+                role={isClickable ? "button" : undefined}
+                tabIndex={isClickable ? 0 : undefined}
+                onClick={
+                  isClickable
+                    ? () => void handleRevisionClick(snap.id!)
+                    : undefined
+                }
+                onKeyDown={
+                  isClickable
+                    ? (e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          void handleRevisionClick(snap.id!);
+                        }
+                      }
+                    : undefined
+                }
+              >
+                {/* Timeline dot + line */}
+                <div className="flex flex-col items-center shrink-0 mt-[3px]">
                   <div
-                    className="w-px flex-1 mt-1"
-                    style={{ background: "var(--border)", minHeight: 16 }}
+                    className={`size-[8px] rounded-full shrink-0 ${isLoadingThis ? "animate-pulse" : ""}`}
+                    style={{
+                      background: isActive
+                        ? "var(--accent)"
+                        : isLoadingThis
+                          ? "var(--warning)"
+                          : isChatRevision
+                            ? "var(--info)"
+                            : "var(--fg-muted)",
+                      boxShadow: isActive
+                        ? "0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent)"
+                        : undefined,
+                    }}
                   />
-                )}
-              </div>
+                  {!isLast && (
+                    <div
+                      className="w-px flex-1 mt-1"
+                      style={{ background: "var(--border)", minHeight: 16 }}
+                    />
+                  )}
+                </div>
 
-              {/* Content */}
-              <div className="flex flex-col min-w-0 pb-2">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  {snap.version != null && (
+                {/* Content */}
+                <div className="flex flex-col min-w-0 pb-2 flex-1">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {snap.version != null && (
+                      <span
+                        className="text-[10px] font-medium shrink-0"
+                        style={{
+                          fontFamily: "var(--font-mono)",
+                          color: isActive
+                            ? "var(--accent)"
+                            : "var(--fg-tertiary)",
+                        }}
+                      >
+                        v{snap.version}
+                      </span>
+                    )}
                     <span
-                      className="text-[10px] font-medium shrink-0"
+                      className="text-[11px] truncate"
                       style={{
-                        fontFamily: "var(--font-mono)",
-                        color: isActive ? "var(--accent)" : "var(--fg-tertiary)",
+                        color: isActive
+                          ? "var(--fg-primary)"
+                          : "var(--fg-secondary)",
                       }}
                     >
-                      v{snap.version}
+                      {isChatRevision && snap.userMessage
+                        ? snap.userMessage.slice(0, 60) +
+                          (snap.userMessage.length > 60 ? "…" : "")
+                        : snap.summary}
                     </span>
-                  )}
+                  </div>
                   <span
-                    className="text-[11px] truncate"
-                    style={{ color: isActive ? "var(--fg-primary)" : "var(--fg-secondary)" }}
+                    className="text-[10px] tabular-nums mt-0.5"
+                    style={{
+                      color: "var(--fg-disabled)",
+                      fontFamily: "var(--font-mono)",
+                    }}
                   >
-                    {isChatRevision && snap.userMessage
-                      ? snap.userMessage.slice(0, 60) + (snap.userMessage.length > 60 ? "…" : "")
-                      : snap.summary}
+                    {relRevTime(snap.createdAt)}
                   </span>
                 </div>
-                <span
-                  className="text-[10px] tabular-nums mt-0.5"
-                  style={{ color: "var(--fg-disabled)", fontFamily: "var(--font-mono)" }}
-                >
-                  {relRevTime(snap.createdAt)}
-                </span>
+                {canCompare && (
+                  <button
+                    type="button"
+                    aria-label={`Compare version ${snap.version}`}
+                    title={`Compare version ${snap.version}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setCompareError(null);
+                      setCompareBaseId((current) =>
+                        current === snap.id ? null : snap.id!,
+                      );
+                    }}
+                    className="inline-flex items-center gap-1 h-[22px] px-1.5 rounded-[4px] text-[10px] font-medium transition-colors duration-[120ms] hover:bg-[var(--surface-3)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer shrink-0 mt-0.5"
+                    style={{
+                      color: compareOpen
+                        ? "var(--accent)"
+                        : "var(--fg-tertiary)",
+                      background: compareOpen
+                        ? "color-mix(in srgb, var(--accent) 10%, transparent)"
+                        : "transparent",
+                    }}
+                  >
+                    <Icons.GitCompare size={11} aria-hidden="true" />
+                    <span>Compare</span>
+                  </button>
+                )}
               </div>
+              {compareOpen && (
+                <div
+                  className="ml-[22px] mr-0 mb-3 rounded-[6px] border p-2"
+                  style={{
+                    background: "var(--surface-1)",
+                    borderColor: "var(--border)",
+                  }}
+                >
+                  <div
+                    className="text-[10px] font-medium mb-1.5"
+                    style={{
+                      color: "var(--fg-muted)",
+                      fontFamily: "var(--font-mono)",
+                    }}
+                  >
+                    Compare v{snap.version} with
+                  </div>
+                  {compareOptions.length === 0 ? (
+                    <p
+                      className="text-[11px]"
+                      style={{ color: "var(--fg-muted)" }}
+                    >
+                      No other versions available.
+                    </p>
+                  ) : (
+                    <div className="flex flex-col gap-1">
+                      {compareOptions.map((option) => (
+                        <button
+                          key={option.id}
+                          type="button"
+                          onClick={() => {
+                            if (!snap.id || snap.version == null) return;
+                            if (option.version === snap.version) {
+                              setCompareError("Choose a different version.");
+                              return;
+                            }
+                            onCompareSnapshots(
+                              { id: snap.id, version: snap.version },
+                              { id: option.id, version: option.version },
+                            );
+                            setCompareBaseId(null);
+                            setCompareError(null);
+                          }}
+                          className="flex items-center justify-between h-[24px] px-2 rounded-[4px] text-[11px] transition-colors duration-[120ms] hover:bg-[var(--surface-3)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
+                          style={{ color: "var(--fg-secondary)" }}
+                        >
+                          <span>{option.label}</span>
+                          <Icons.ArrowRight size={10} aria-hidden="true" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {compareError && (
+                    <p
+                      className="text-[10px] mt-1.5"
+                      style={{ color: "var(--danger)" }}
+                      role="alert"
+                    >
+                      {compareError}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
@@ -771,6 +932,7 @@ export function RightPane({
   snapshotsLoading,
   viewingSnapshotId,
   onViewSnapshot,
+  onCompareSnapshots,
 }: RightPaneProps) {
   return (
     <aside
@@ -843,6 +1005,7 @@ export function RightPane({
             loading={snapshotsLoading}
             viewingSnapshotId={viewingSnapshotId}
             onViewSnapshot={onViewSnapshot}
+            onCompareSnapshots={onCompareSnapshots}
           />
         )}
       </div>

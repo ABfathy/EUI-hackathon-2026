@@ -232,4 +232,31 @@ describe("runBriefGeneration", () => {
     expect(mockGenerateBriefFromBundle).not.toHaveBeenCalled();
     expect(mockPrisma.$transaction).not.toHaveBeenCalled();
   });
+
+  it("does not persist an empty model output", async () => {
+    mockGenerateBriefFromBundle.mockResolvedValue({
+      summary: [],
+      goals: [],
+      ambiguities: [],
+      followUpQuestions: [],
+    });
+
+    await expect(
+      runBriefGeneration({
+        jobId: "job_1",
+        sessionId: "session_1",
+        requestedBy: "user_1",
+      }),
+    ).rejects.toThrow("empty brief");
+
+    expect(mockGenerateBriefFromBundle).toHaveBeenCalledTimes(2);
+    expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    expect(mockPrisma.processingJob.update).toHaveBeenLastCalledWith({
+      where: { id: "job_1" },
+      data: expect.objectContaining({
+        status: "FAILED",
+        errorCode: "INVALID_MODEL_OUTPUT",
+      }),
+    });
+  });
 });

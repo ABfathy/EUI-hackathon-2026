@@ -18,11 +18,11 @@ vi.mock("@/server/services/google-genai", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { transcribeAudioToEnglish } from "@/server/services/google-genai";
 import {
   processAudioAsset,
   processPdfAsset,
 } from "@/server/services/source-processing";
-import { transcribeAudioToEnglish } from "@/server/services/google-genai";
 
 const mockPrisma = prisma as unknown as {
   sourceAsset: {

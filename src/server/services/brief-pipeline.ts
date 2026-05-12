@@ -119,6 +119,23 @@ async function markJobFailed(jobId: string, error: unknown) {
   return pipelineError;
 }
 
+function assertBriefOutputHasContent(output: BriefOutput) {
+  const itemCount =
+    output.summary.length +
+    output.goals.length +
+    output.ambiguities.length +
+    output.followUpQuestions.length;
+
+  if (itemCount === 0) {
+    throw new BriefPipelineError(
+      "INVALID_MODEL_OUTPUT",
+      "Model returned an empty brief. Return at least one summary, goal, ambiguity, or follow-up question grounded in the provided sources.",
+    );
+  }
+
+  return output;
+}
+
 export async function loadPromptSourceAssets(sessionId: string) {
   return prisma.sourceAsset.findMany({
     where: {
@@ -253,7 +270,7 @@ async function callModelWithRetry(bundle: SourceBundle) {
       ),
       retry: false,
     });
-    return await generateBriefFromBundle(bundle);
+    return assertBriefOutputHasContent(await generateBriefFromBundle(bundle));
   } catch (error) {
     const firstError = pipelineErrorFromUnknown(error);
     logBriefPipeline("warn", "Initial Gemini call failed.", {
@@ -269,7 +286,9 @@ async function callModelWithRetry(bundle: SourceBundle) {
         sourceAssetCount: bundle.assets.length,
         retry: true,
       });
-      return await generateBriefFromBundle(bundle, firstError.message);
+      return assertBriefOutputHasContent(
+        await generateBriefFromBundle(bundle, firstError.message),
+      );
     } catch (retryError) {
       throw pipelineErrorFromUnknown(retryError);
     }
@@ -529,20 +548,26 @@ export async function* runBriefGenerationStream(
 
     let output: BriefOutput;
     try {
-      output = BriefOutputSchema.parse(extractJson(fullText));
-    } catch (parseError) {
+      output = assertBriefOutputHasContent(
+        BriefOutputSchema.parse(extractJson(fullText)),
+      );
+    } catch (outputError) {
       logBriefPipeline(
         "warn",
-        "Stream output invalid, retrying non-streaming.",
+        "Stream output invalid or empty, retrying non-streaming.",
         {
           jobId: input.jobId,
           errorMessage:
-            parseError instanceof Error ? parseError.message : "Parse failed.",
+            outputError instanceof Error
+              ? outputError.message
+              : "Output validation failed.",
         },
       );
-      const hint = pipelineErrorFromUnknown(parseError).message;
+      const hint = pipelineErrorFromUnknown(outputError).message;
       try {
-        output = await generateBriefFromBundle(bundle, hint);
+        output = assertBriefOutputHasContent(
+          await generateBriefFromBundle(bundle, hint),
+        );
       } catch (retryError) {
         throw pipelineErrorFromUnknown(retryError);
       }

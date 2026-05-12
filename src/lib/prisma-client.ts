@@ -9,6 +9,7 @@ export function createPrismaClient(connectionString = process.env.DATABASE_URL) 
 
   const adapter = new PrismaPg({
     connectionString,
+    connectionTimeoutMillis: 5000,
   });
 
   return new PrismaClient({ adapter });

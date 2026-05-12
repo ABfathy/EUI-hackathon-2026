@@ -1,7 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { utapi } from "@/lib/uploadthing";
 
-import type { SourceAssetStatus } from "../../../generated/prisma/client";
+import {
+  Prisma,
+  type SourceAssetStatus,
+} from "../../../generated/prisma/client";
 
 const DEFAULT_WORKSPACE_NAME = "My Workspace";
 
@@ -50,15 +53,40 @@ function workspaceSlugForUser(clerkUserId: string) {
 
 export async function ensureWorkspaceForUser(clerkUserId: string) {
   const slug = workspaceSlugForUser(clerkUserId);
-  return prisma.workspace.upsert({
+  const existingWorkspace = await prisma.workspace.findUnique({
     where: { slug },
-    update: {},
-    create: {
-      slug,
-      name: DEFAULT_WORKSPACE_NAME,
-      createdBy: clerkUserId,
-    },
   });
+
+  if (existingWorkspace) {
+    return existingWorkspace;
+  }
+
+  try {
+    return await prisma.workspace.create({
+      data: {
+        slug,
+        name: DEFAULT_WORKSPACE_NAME,
+        createdBy: clerkUserId,
+      },
+    });
+  } catch (error) {
+    // Concurrent requests can race here during first sign-in. If another
+    // request created the workspace first, read it back instead of failing.
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      const racedWorkspace = await prisma.workspace.findUnique({
+        where: { slug },
+      });
+
+      if (racedWorkspace) {
+        return racedWorkspace;
+      }
+    }
+
+    throw error;
+  }
 }
 
 export async function listProjectsForUser(clerkUserId: string) {

@@ -40,6 +40,8 @@ export interface SnapshotSummary {
   createdAt: string;
   trigger: string | null;
   userMessage: string | null;
+  feedbackBody?: string | null;
+  feedbackAuthor?: string | null;
 }
 
 type SessionRef = { id: string; title: string } | null;
@@ -453,6 +455,8 @@ export function EditorShell({
         trigger: string | null;
         userMessage: string | null;
         selectionText: string | null;
+        feedbackBody: string | null;
+        feedbackAuthor: string | null;
       }> };
       const allRevisions = data.revisions ?? [];
 
@@ -482,6 +486,8 @@ export function EditorShell({
           createdAt: r.createdAt,
           trigger: r.trigger,
           userMessage: r.userMessage,
+          feedbackBody: r.feedbackBody,
+          feedbackAuthor: r.feedbackAuthor,
         })),
       );
     } catch {

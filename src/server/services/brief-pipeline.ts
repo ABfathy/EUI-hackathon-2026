@@ -140,7 +140,7 @@ export async function loadPromptSourceAssets(sessionId: string) {
   return prisma.sourceAsset.findMany({
     where: {
       sessionId,
-      sourceType: { in: ["TEXT", "PDF", "AUDIO"] },
+      sourceType: { in: ["TEXT", "PDF", "AUDIO", "IMAGE"] },
       status: { in: ["UPLOADED", "PROCESSED"] },
     },
     include: {
@@ -162,12 +162,14 @@ export async function ensureSourceChunks(assets: PromptAssetWithChunks[]) {
     if (asset.chunks.length > 0) continue;
 
     const normalizedChunks =
-      asset.sourceType === "TEXT"
-        ? normalizeTextToChunks(asset.textContent ?? "")
-        : normalizeSourceTextToChunks({
-            sourceType: asset.sourceType,
-            text: asset.textContent ?? "",
-          });
+      asset.sourceType === "IMAGE"
+        ? [imageSourceChunk(asset)]
+        : asset.sourceType === "TEXT"
+          ? normalizeTextToChunks(asset.textContent ?? "")
+          : normalizeSourceTextToChunks({
+              sourceType: asset.sourceType,
+              text: asset.textContent ?? "",
+            });
     if (normalizedChunks.length === 0) {
       throw new BriefPipelineError(
         "EMPTY_TEXT_SOURCE",
@@ -203,7 +205,25 @@ function assetLabel(asset: PromptAssetWithChunks) {
   return asset.displayLabel ?? asset.originalFileName ?? "Untitled source";
 }
 
+function imageSourceText(asset: PromptAssetWithChunks) {
+  return `Image source: ${assetLabel(asset)}. Inspect the attached image for client chat text, UI details, diagrams, feature notes, and other project requirements. If the image is unclear or not project-relevant, say that it does not provide enough actionable project information.`;
+}
+
+function imageSourceChunk(asset: PromptAssetWithChunks) {
+  return {
+    kind: "IMAGE_OBSERVATION" as const,
+    orderIndex: 0,
+    text: imageSourceText(asset),
+    locator: {
+      kind: "image-source",
+      sourceAssetId: asset.id,
+    },
+    chunkLabel: "Image 1",
+  };
+}
+
 export function textForPrompt(asset: PromptAssetWithChunks) {
+  if (asset.sourceType === "IMAGE") return imageSourceText(asset);
   if (asset.textContent?.trim()) return asset.textContent.trim();
   return asset.chunks
     .map((chunk) => chunk.text)
@@ -256,6 +276,9 @@ export function buildSourceBundle(
       id: asset.id,
       label,
       text: body.slice(0, allocations[i]),
+      sourceType: asset.sourceType,
+      mimeType: asset.mimeType,
+      fileUrl: asset.appUrl ?? asset.ufsUrl,
     })),
   };
 }

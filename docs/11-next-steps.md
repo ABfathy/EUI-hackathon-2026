@@ -23,17 +23,7 @@ Everything needed to receive client feedback exists except the path that puts a 
 
 ---
 
-## 2 — Job Status & Failure Surface
-
-When generation or processing fails, the user currently sees a generic spinner.
-
-- Surface `ProcessingJob.status` and `errorCode` in the editor status bar
-- Show a "generation failed" state with the error message and a retry option
-- For async mode, poll job status and display queued/running/succeeded/failed
-
----
-
-## 3 — Code Quality (from Discovered Enhancements)
+## 2 — Code Quality (from Discovered Enhancements)
 
 Non-blocking but should be done before the next production push:
 
@@ -46,7 +36,7 @@ Non-blocking but should be done before the next production push:
 
 ---
 
-## 4 — Test Coverage
+## 3 — Test Coverage
 
 - `pnpm test:e2e` — implement with Playwright; cover: sign-in, create project, upload source, generate brief, share link, submit comment
 - `pnpm test:a11y` — implement with axe-core or Playwright accessibility checks; cover public brief page and editor shell
@@ -54,7 +44,7 @@ Non-blocking but should be done before the next production push:
 
 ---
 
-## Not A Priority Until 1–2 Are Done
+## Not A Priority Until 1 Is Done
 
 - Revision diff view (side-by-side before/after)
 - Internal approval workflow over generated snapshots

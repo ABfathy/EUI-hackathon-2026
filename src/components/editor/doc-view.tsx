@@ -381,9 +381,13 @@ function DocLine({
 function EmptyDoc({
   state,
   onAddSources,
+  generationError,
+  onRetry,
 }: {
   state: AppState;
   onAddSources?: () => void;
+  generationError?: string | null;
+  onRetry?: () => void;
 }) {
   if (state === "no-session") {
     return (
@@ -501,11 +505,21 @@ function EmptyDoc({
             Generation failed
           </p>
           <p
-            className="text-[13px] leading-[1.65]"
+            className="text-[13px] leading-[1.65] mb-3"
             style={{ color: "var(--fg-muted)" }}
           >
-            The pipeline could not complete. Check sources and try again.
+            {generationError ?? "The pipeline could not complete. Check sources and try again."}
           </p>
+          {onRetry && (
+            <button
+              onClick={onRetry}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] text-[12px] font-medium transition-opacity hover:opacity-80"
+              style={{ background: "var(--surface-2)", color: "var(--fg-secondary)", border: "1px solid var(--border)" }}
+            >
+              <Icons.Refresh size={11} aria-hidden="true" />
+              Retry
+            </button>
+          )}
         </div>
       </div>
     );
@@ -667,6 +681,8 @@ export interface DocViewProps {
   onGenerateBrief?: () => void;
   generating?: boolean;
   hasSnapshot?: boolean;
+  generationError?: string | null;
+  onRetry?: () => void;
   streamingLines?: DocLineData[] | null;
   onAttachFiles?: (files: File[]) => Promise<void>;
   onOpenSource?: (sourceId: string) => void;
@@ -690,6 +706,8 @@ export function DocView({
   onGenerateBrief,
   generating = false,
   hasSnapshot = false,
+  generationError = null,
+  onRetry,
   streamingLines = null,
   onAttachFiles,
   onOpenSource,
@@ -758,9 +776,7 @@ export function DocView({
                 ? "Generation in progress"
                 : generateDisabled
                   ? "Add sources first"
-                  : hasSnapshot
-                    ? "Generate a new version of this brief"
-                    : undefined
+                  : undefined
             }
             onClick={onGenerateBrief}
             className="flex items-center gap-1 h-[22px] px-2 rounded-[4px] text-[11px] font-medium transition-colors duration-[120ms] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
@@ -773,15 +789,9 @@ export function DocView({
             {hasSnapshot && !generating ? (
               <Icons.Refresh size={11} aria-hidden="true" />
             ) : (
-              <Icons.Download
-                size={11}
-                aria-hidden="true"
-                className={generating ? "animate-spin" : undefined}
-              />
+              <Icons.Download size={11} aria-hidden="true" className={generating ? "animate-spin" : undefined} />
             )}
-            <span>
-              {generating ? "Generating..." : hasSnapshot ? "Regenerate" : "Generate Brief"}
-            </span>
+            <span>{generating ? "Generating..." : hasSnapshot ? "Regenerate" : "Generate Brief"}</span>
           </button>
         </div>
       </div>
@@ -824,9 +834,9 @@ export function DocView({
             />
           ))
         ) : (appState === "generating" || appState === "revising") ? (
-          <EmptyDoc state={appState} onAddSources={onAddSources} />
+          <EmptyDoc state={appState} onAddSources={onAddSources} generationError={generationError} onRetry={onRetry} />
         ) : appState !== "ready" ? (
-          <EmptyDoc state={appState} onAddSources={onAddSources} />
+          <EmptyDoc state={appState} onAddSources={onAddSources} generationError={generationError} onRetry={onRetry} />
         ) : lines.length === 0 ? (
           <EmptyDoc state="no-sources" onAddSources={onAddSources} />
         ) : (

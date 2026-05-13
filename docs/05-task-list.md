@@ -60,7 +60,7 @@
 ## In Progress / Partially Done
 
 - [ ] `/brief/[shareToken]` has the real responsive shell and wired submissions, but still renders `MOCK_REQUIREMENTS` and `MOCK_REVISIONS` — not yet backed by real snapshot data
-- [ ] Generation supports both sync and async modes; the async path requires `BRIEF_GENERATION_ASYNC=1` and has no job-status UI
+- [x] Generation supports both sync and async modes; job status surfaced in status bar; retry button on failure
 - [ ] Right pane chat tab displays messages but the standalone send input is not wired (send only works from document text selection)
 
 ---
@@ -74,19 +74,7 @@
 - [ ] Add share button in the internal workspace (doc header or right pane) that shows the generated URL
 - [ ] Load real `ShareLink → BriefSnapshot` data in `/brief/[shareToken]/page.tsx` — replace mock requirements and revisions
 
-### P1 — Async Job Status UI
-
-- [ ] Surface `ProcessingJob.status` and `errorCode` in the editor status bar when running in async mode
-- [ ] Show a "generation failed" state with error message and retry option
-- [ ] Poll job status in async mode and update UI on queued → running → succeeded / failed
-
-### P2 — Job Status & Failure Surface
-
-- [ ] Surface `ProcessingJob.status` and `errorCode` in the editor status bar
-- [ ] Show a "generation failed" state with error message and retry option
-- [ ] Poll job status in async mode and update UI on queued → running → succeeded / failed
-
-### P3 — Code Quality (Discovered Enhancements)
+### P1 — Code Quality (Discovered Enhancements)
 
 - [ ] ReDoS risk in `pdf-text.ts` — replace `(?:.|\n|\r)*?` with `[\s\S]*?` in `STREAM_START_PATTERN`
 - [ ] Concurrent processing guard in `source-processing.ts` — optimistic status pre-check before starting work
@@ -95,7 +83,7 @@
 - [ ] Call `controller.close()` after error event in `api/generate/route.ts` SSE stream
 - [ ] Move `PROMPT_BUNDLE_MAX_CHARS = 30_000` to an env-configurable value
 
-### P4 — Test Coverage
+### P2 — Test Coverage
 
 - [ ] Implement `pnpm test:e2e` with Playwright (cover: sign-in, create project, upload source, generate brief, share, comment)
 - [ ] Implement `pnpm test:a11y` with axe-core or Playwright accessibility checks

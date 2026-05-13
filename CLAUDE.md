@@ -58,6 +58,7 @@ Implemented:
 - revision history tab in the right pane, enriched with public feedback bodies and authors
 - public review mutations (comment, answer, confirm) with rate limiting and revision events
 - public review UI wired to real API endpoints with error handling
+- async job status polling — `GET /api/jobs/[jobId]` surfaced in the status bar; failed state shows error + Retry button
 
 Not implemented / not wired:
 

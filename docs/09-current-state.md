@@ -48,7 +48,9 @@ The internal workspace is end-to-end functional: auth → source upload → brie
 **Working:**
 
 - Sync path (default): full pipeline runs inside the HTTP request; SSE stream returned to client
-- Async path (`BRIEF_GENERATION_ASYNC=1`): Inngest event dispatched; browser polls for result
+- Async path (`BRIEF_GENERATION_ASYNC=1`): Inngest event dispatched; `ProcessingJob` status polled via `GET /api/jobs/[jobId]` and shown in the status bar (queued → running → idle/failed)
+- Generation failure surfaces error message in the document view with a Retry button
+- Unified generate / regenerate button — shows "Generate Brief" before first snapshot, "Regenerate" after
 - Source bundle allocation distributes a 30 000-char budget across all sources
 - Gemini output validated against JSON schema; retried once on parse failure
 - `BriefSnapshot`, `BriefClaim`, `BriefQuestion`, `EvidenceRef` persisted in a single Prisma transaction

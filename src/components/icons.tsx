@@ -4,6 +4,7 @@ import {
   Check,
   ChevronRight,
   Code,
+  Copy,
   Download,
   Eye,
   FileText,
@@ -64,6 +65,7 @@ export const Icons = {
   Refresh: icon(RefreshCw),
   Trash: icon(Trash2),
   Check: icon(Check),
+  Copy: icon(Copy),
   X: icon(X),
   ArrowLeft: icon(ArrowLeft),
   ArrowRight: icon(ArrowRight),
@@ -78,26 +80,14 @@ export function RxLogo({
   className?: string;
 }) {
   return (
-    <svg
+    <img
+      src="/rx-logo.png"
       width={size}
       height={size}
-      viewBox="0 0 16 16"
-      fill="none"
+      alt=""
       aria-hidden="true"
       className={className}
-    >
-      <path
-        d="M3 2h6a3 3 0 0 1 0 6H3V2Z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M8 8l4 6M3 8v6"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-    </svg>
+      style={{ mixBlendMode: "screen", display: "inline-block", flexShrink: 0 }}
+    />
   );
 }

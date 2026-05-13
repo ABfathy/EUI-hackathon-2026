@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 
 import { Icons } from "@/components/icons";
@@ -46,6 +47,11 @@ export interface DocLineData {
   small?: boolean;
   /** True while this line is actively being typed by the model. Renders a blinking cursor. */
   streaming?: boolean;
+}
+
+export interface WorkspaceComparisonTab {
+  id: string;
+  title: string;
 }
 
 const STATUS_TONE: Record<string, Tone> = {
@@ -152,7 +158,11 @@ function DocLine({
   line: DocLineData;
   selectedReq: string | null;
   onSelectReq: (id: string) => void;
-  onUpdateLine?: (reqId: string, reqType: "claim" | "question", newText: string) => Promise<void>;
+  onUpdateLine?: (
+    reqId: string,
+    reqType: "claim" | "question",
+    newText: string,
+  ) => Promise<void>;
   onOpenSource?: (sourceId: string) => void;
 }) {
   const isReq = !!line.reqId && !!line.reqType;
@@ -200,7 +210,10 @@ function DocLine({
   }
 
   function handleEditKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Escape") { setEditing(false); return; }
+    if (e.key === "Escape") {
+      setEditing(false);
+      return;
+    }
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       void commitEdit();
@@ -217,7 +230,9 @@ function DocLine({
   return (
     <div
       className={`flex items-start w-full transition-colors duration-[80ms] group ${isReq && !editing ? "cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--accent-ring)]" : ""}`}
-      style={{ background: isActive && !editing ? "var(--accent-subtle)" : undefined }}
+      style={{
+        background: isActive && !editing ? "var(--accent-subtle)" : undefined,
+      }}
       role={isReq && !editing ? "button" : undefined}
       tabIndex={isReq && !editing ? 0 : undefined}
       aria-pressed={isReq && !editing ? isActive : undefined}
@@ -247,7 +262,12 @@ function DocLine({
         {line.type === "h1" && (
           <span
             className="text-[21px] font-semibold tracking-[-0.02em] leading-tight"
-            style={{ color: "var(--fg-primary)", textWrap: "balance" } as React.CSSProperties}
+            style={
+              {
+                color: "var(--fg-primary)",
+                textWrap: "balance",
+              } as React.CSSProperties
+            }
           >
             {line.text}
           </span>
@@ -298,7 +318,10 @@ function DocLine({
         {line.type === "body" && !editing && (
           <span
             className="text-[14px] leading-[1.65] w-full"
-            style={{ color: line.small ? "var(--fg-muted)" : "var(--fg-secondary)", fontSize: line.small ? 12 : undefined }}
+            style={{
+              color: line.small ? "var(--fg-muted)" : "var(--fg-secondary)",
+              fontSize: line.small ? 12 : undefined,
+            }}
             title={isReq && onUpdateLine ? "Double-click to edit" : undefined}
           >
             {line.text}
@@ -306,17 +329,24 @@ function DocLine({
               <span
                 className="inline-block w-[1.5px] h-[13px] rounded-[1px] ml-[1px] align-middle animate-pulse"
                 aria-hidden="true"
-                style={{ background: "var(--fg-tertiary)", verticalAlign: "middle" }}
+                style={{
+                  background: "var(--fg-tertiary)",
+                  verticalAlign: "middle",
+                }}
               />
             )}
-            {!line.streaming && line.evidence?.map((ev, i) => (
-              <EvidenceBit key={i} ev={ev} onOpenSource={onOpenSource} />
-            ))}
+            {!line.streaming &&
+              line.evidence?.map((ev, i) => (
+                <EvidenceBit key={i} ev={ev} onOpenSource={onOpenSource} />
+              ))}
             {isReq && !line.streaming && onUpdateLine && (
               <button
                 type="button"
                 aria-label="Edit"
-                onClick={(e) => { e.stopPropagation(); startEdit(); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  startEdit();
+                }}
                 className="ml-2 opacity-0 group-hover:opacity-60 hover:!opacity-100 inline-flex items-center justify-center size-[16px] rounded-[3px] transition-opacity duration-[100ms] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
                 style={{ color: "var(--fg-muted)", verticalAlign: "middle" }}
               >
@@ -326,7 +356,10 @@ function DocLine({
           </span>
         )}
         {line.type === "body" && editing && (
-          <div className="flex flex-col gap-1.5 w-full py-1" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="flex flex-col gap-1.5 w-full py-1"
+            onClick={(e) => e.stopPropagation()}
+          >
             <textarea
               ref={textareaRef}
               value={editVal}
@@ -349,9 +382,16 @@ function DocLine({
                 onClick={() => void commitEdit()}
                 disabled={saving || !editVal.trim()}
                 className="inline-flex items-center gap-1 h-[22px] px-2 rounded-[4px] text-[11px] font-medium transition-colors duration-[100ms] disabled:opacity-40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
-                style={{ background: "var(--accent)", color: "var(--accent-fg)" }}
+                style={{
+                  background: "var(--accent)",
+                  color: "var(--accent-fg)",
+                }}
               >
-                {saving ? <Icons.Download size={10} className="animate-spin" /> : <Icons.Check size={10} />}
+                {saving ? (
+                  <Icons.Download size={10} className="animate-spin" />
+                ) : (
+                  <Icons.Check size={10} />
+                )}
                 Save
               </button>
               <button
@@ -365,7 +405,10 @@ function DocLine({
               </button>
               <span
                 className="text-[10px] ml-auto"
-                style={{ color: "var(--fg-disabled)", fontFamily: "var(--font-mono)" }}
+                style={{
+                  color: "var(--fg-disabled)",
+                  fontFamily: "var(--font-mono)",
+                }}
               >
                 ⌘↵ save · Esc cancel
               </span>
@@ -762,9 +805,18 @@ export interface DocViewProps {
   onClearSelection?: () => void;
   onSendMessage?: (msg: string, selectionText?: string) => Promise<void>;
   revising?: boolean;
-  onUpdateLine?: (reqId: string, reqType: "claim" | "question", newText: string) => Promise<void>;
+  onUpdateLine?: (
+    reqId: string,
+    reqType: "claim" | "question",
+    newText: string,
+  ) => Promise<void>;
   viewingVersion?: number | null;
   onExitVersionView?: () => void;
+  comparisonTabs?: WorkspaceComparisonTab[];
+  activeWorkspaceTab?: string;
+  activeComparisonContent?: ReactNode;
+  onSelectWorkspaceTab?: (id: string) => void;
+  onCloseComparisonTab?: (id: string) => void;
 }
 
 export function DocView({
@@ -790,6 +842,11 @@ export function DocView({
   onUpdateLine,
   viewingVersion = null,
   onExitVersionView,
+  comparisonTabs = [],
+  activeWorkspaceTab = "draft",
+  activeComparisonContent,
+  onSelectWorkspaceTab,
+  onCloseComparisonTab,
 }: DocViewProps) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [filterQuery, setFilterQuery] = useState("");
@@ -813,6 +870,8 @@ export function DocView({
     generating ||
     revising ||
     !onGenerateBrief;
+  const showingComparison =
+    activeWorkspaceTab !== "draft" && activeComparisonContent;
 
   return (
     <div
@@ -831,13 +890,25 @@ export function DocView({
         >
           {projectName && (
             <>
-              <span className="truncate shrink-0 max-w-[180px] font-medium" style={{ color: "var(--fg-secondary)" }}>
+              <span
+                className="truncate shrink-0 max-w-[180px] font-medium"
+                style={{ color: "var(--fg-secondary)" }}
+              >
                 {projectName}
               </span>
-              <Icons.ChevronRight size={11} aria-hidden="true" className="shrink-0 opacity-40" />
+              <Icons.ChevronRight
+                size={11}
+                aria-hidden="true"
+                className="shrink-0 opacity-40"
+              />
             </>
           )}
-          <span className="truncate" style={{ color: projectName ? "var(--fg-tertiary)" : "var(--fg-secondary)" }}>
+          <span
+            className="truncate"
+            style={{
+              color: projectName ? "var(--fg-tertiary)" : "var(--fg-secondary)",
+            }}
+          >
             {sessionName ?? "—"}
           </span>
         </div>
@@ -909,8 +980,90 @@ export function DocView({
         </div>
       </div>
 
+      {comparisonTabs.length > 0 && (
+        <div
+          className="flex items-center h-8 px-2 shrink-0 border-b gap-1 overflow-x-auto"
+          style={{
+            background: "var(--surface-1)",
+            borderColor: "var(--border)",
+          }}
+          role="tablist"
+          aria-label="Workspace tabs"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeWorkspaceTab === "draft"}
+            onClick={() => onSelectWorkspaceTab?.("draft")}
+            className="inline-flex items-center h-[24px] px-2 rounded-[4px] text-[11px] font-medium border transition-colors duration-[120ms] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
+            style={
+              activeWorkspaceTab === "draft"
+                ? {
+                    background: "var(--surface-3)",
+                    borderColor: "var(--border-strong)",
+                    color: "var(--fg-primary)",
+                  }
+                : {
+                    background: "transparent",
+                    borderColor: "transparent",
+                    color: "var(--fg-tertiary)",
+                  }
+            }
+          >
+            Draft
+          </button>
+          {comparisonTabs.map((tab) => {
+            const active = activeWorkspaceTab === tab.id;
+            return (
+              <div
+                key={tab.id}
+                className="group inline-flex items-center h-[24px] max-w-[260px] rounded-[4px] text-[11px] font-medium border transition-colors duration-[120ms]"
+                style={
+                  active
+                    ? {
+                        background: "var(--surface-3)",
+                        borderColor: "var(--border-strong)",
+                        color: "var(--fg-primary)",
+                      }
+                    : {
+                        background: "transparent",
+                        borderColor: "transparent",
+                        color: "var(--fg-tertiary)",
+                      }
+                }
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => onSelectWorkspaceTab?.(tab.id)}
+                  className="inline-flex items-center gap-1 h-full min-w-0 px-2 rounded-l-[4px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
+                  style={{ color: "inherit" }}
+                >
+                  <Icons.GitCompare
+                    size={11}
+                    aria-hidden="true"
+                    className="shrink-0"
+                  />
+                  <span className="truncate">{tab.title}</span>
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Close ${tab.title}`}
+                  onClick={() => onCloseComparisonTab?.(tab.id)}
+                  className="inline-flex items-center justify-center size-[20px] mr-0.5 rounded-[3px] opacity-70 transition-opacity duration-[120ms] hover:opacity-100 hover:bg-[var(--surface-2)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
+                  style={{ color: "var(--fg-muted)" }}
+                >
+                  <Icons.X size={9} aria-hidden="true" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Past-version banner */}
-      {viewingVersion !== null && (
+      {viewingVersion !== null && !showingComparison && (
         <div
           className="flex items-center justify-between px-4 h-8 shrink-0 border-b text-[11px]"
           style={{
@@ -922,7 +1075,9 @@ export function DocView({
           aria-live="polite"
         >
           <span>
-            Viewing <span className="font-mono font-medium">v{viewingVersion}</span> — this is a past version
+            Viewing{" "}
+            <span className="font-mono font-medium">v{viewingVersion}</span> —
+            this is a past version
           </span>
           <button
             type="button"
@@ -937,7 +1092,9 @@ export function DocView({
 
       {/* Doc scroll */}
       <div className="flex-1 overflow-y-auto py-4">
-        {streamingLines && streamingLines.length > 0 ? (
+        {showingComparison ? (
+          activeComparisonContent
+        ) : streamingLines && streamingLines.length > 0 ? (
           streamingLines.map((line, i) => (
             <DocLine
               key={i}
@@ -967,13 +1124,15 @@ export function DocView({
       </div>
 
       {/* Chat bar */}
-      <ChatBar
-        onAttachFiles={onAttachFiles}
-        selectedReqText={selectedReqText}
-        onClearSelection={onClearSelection}
-        onSendMessage={onSendMessage}
-        revising={revising}
-      />
+      {!showingComparison && (
+        <ChatBar
+          onAttachFiles={onAttachFiles}
+          selectedReqText={selectedReqText}
+          onClearSelection={onClearSelection}
+          onSendMessage={onSendMessage}
+          revising={revising}
+        />
+      )}
     </div>
   );
 }

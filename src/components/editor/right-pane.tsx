@@ -293,11 +293,10 @@ function SourceRow({ item, onDelete, onRename, onPreview }: SourceRowProps) {
           <>
             {/* Status dot — sits in place, cross-fades with action buttons */}
             <span
-              className={`absolute inset-0 m-auto size-[6px] rounded-full transition-opacity duration-[150ms] pointer-events-none ${
-                (onPreview ?? onDelete)
+              className={`absolute inset-0 m-auto size-[6px] rounded-full transition-opacity duration-[150ms] pointer-events-none ${(onPreview ?? onDelete)
                   ? "opacity-60 group-hover:opacity-0"
                   : "opacity-60"
-              }`}
+                }`}
               style={{ background: STATUS_DOT[item.status] }}
               aria-label={STATUS_LABEL[item.status]}
               role="img"

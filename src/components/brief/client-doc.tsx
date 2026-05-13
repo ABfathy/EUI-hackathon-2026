@@ -1,6 +1,6 @@
 "use client";
 
-import { Check,Send } from "lucide-react";
+import { Check, Send } from "lucide-react";
 
 import {
   type Requirement,

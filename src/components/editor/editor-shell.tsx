@@ -686,7 +686,7 @@ export function EditorShell({
     } finally {
       setGenerating(false);
     }
-  }, [sessionId, generating, session, router, loadRevisions, refreshSources, startJobPoll, stopJobPoll]);
+  }, [sessionId, generating, router, loadRevisions, refreshSources, startJobPoll, stopJobPoll]);
 
   const handleSendMessage = useCallback(
     async (userMessage: string, selectionText?: string) => {
@@ -760,7 +760,6 @@ export function EditorShell({
   );
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (sessionId) void loadRevisions(sessionId);
   }, [sessionId, loadRevisions]);
 
@@ -1270,7 +1269,6 @@ ${lines.map((l) => {
   /* Reset snapshot state when session changes */
   useEffect(() => {
     if (!sessionId) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSnapshots([]);
     setViewingVersion(null);
     setClientLines(null);

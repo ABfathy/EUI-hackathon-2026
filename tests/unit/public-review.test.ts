@@ -223,6 +223,7 @@ describe("confirmPublicBrief", () => {
     expect(result).toEqual({
       id: "snapshot_1",
       status: "CONFIRMED",
+      sessionId: "session_1",
     });
   });
 
@@ -241,8 +242,9 @@ describe("confirmPublicBrief", () => {
     expect(mockTx.briefSnapshot.update).not.toHaveBeenCalled();
     expect(mockTx.revisionEvent.create).not.toHaveBeenCalled();
     expect(result).toEqual({
-      snapshotId: "snapshot_1",
+      id: "snapshot_1",
       status: "CONFIRMED",
+      sessionId: "session_1",
     });
   });
 

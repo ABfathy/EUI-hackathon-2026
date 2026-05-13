@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { prisma } from "@/lib/prisma";
 import { snapshotToDocLines } from "@/lib/snapshot-to-doclines";
 import {
   isInternalAuthorizationError,
@@ -20,12 +19,7 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const session = await prisma.intakeSession.findUnique({
-      where: { id: snapshot.sessionId },
-      select: { title: true },
-    });
-
-    const lines = snapshotToDocLines(snapshot, session?.title ?? null);
+    const lines = snapshotToDocLines(snapshot);
     return NextResponse.json({ lines, version: snapshot.version, status: snapshot.status });
   } catch (err) {
     if (isInternalAuthorizationError(err)) {

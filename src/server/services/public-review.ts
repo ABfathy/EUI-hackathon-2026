@@ -368,6 +368,18 @@ export type PublicBriefViewData = {
     text: string;
     reason: string;
     status: BriefQuestionStatus;
+    answerText: string | null;
+  }>;
+  comments: Array<{
+    id: string;
+    section: string;
+    anchorType: string;
+    body: string;
+    authorName: string | null;
+    authorEmail: string | null;
+    claimId: string | null;
+    questionId: string | null;
+    createdAt: Date;
   }>;
   revisions: Array<{
     id: string;
@@ -383,7 +395,7 @@ export async function loadPublicBriefView(
 ): Promise<PublicBriefViewData> {
   const access = await getPublicReviewAccessContext(prisma, shareToken);
 
-  const [snapshot, revisions] = await Promise.all([
+  const [snapshot, revisions, comments] = await Promise.all([
     prisma.briefSnapshot.findUnique({
       where: { id: access.snapshotId },
       select: {
@@ -413,6 +425,11 @@ export async function loadPublicBriefView(
             text: true,
             reason: true,
             status: true,
+            answers: {
+              select: { body: true },
+              orderBy: { createdAt: "asc" as const },
+              take: 1,
+            },
           },
         },
       },
@@ -426,6 +443,21 @@ export async function loadPublicBriefView(
         summary: true,
         createdAt: true,
         snapshot: { select: { version: true } },
+      },
+    }),
+    prisma.briefComment.findMany({
+      where: { snapshotId: access.snapshotId },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        section: true,
+        anchorType: true,
+        body: true,
+        authorName: true,
+        authorEmail: true,
+        claimId: true,
+        questionId: true,
+        createdAt: true,
       },
     }),
   ]);
@@ -442,7 +474,11 @@ export async function loadPublicBriefView(
     },
     project: snapshot.project,
     claims: snapshot.claims,
-    questions: snapshot.questions,
+    questions: snapshot.questions.map((q) => ({
+      ...q,
+      answerText: q.answers[0]?.body ?? null,
+    })),
+    comments,
     revisions: revisions.map((rev) => ({
       id: rev.id,
       type: rev.type,
@@ -462,8 +498,9 @@ export async function confirmPublicBrief(
 
     if (access.snapshotStatus === BriefSnapshotStatus.CONFIRMED) {
       return {
-        snapshotId: access.snapshotId,
+        id: access.snapshotId,
         status: BriefSnapshotStatus.CONFIRMED,
+        sessionId: access.sessionId,
       };
     }
 
@@ -494,6 +531,6 @@ export async function confirmPublicBrief(
       },
     });
 
-    return snapshot;
+    return { ...snapshot, sessionId: access.sessionId };
   });
 }

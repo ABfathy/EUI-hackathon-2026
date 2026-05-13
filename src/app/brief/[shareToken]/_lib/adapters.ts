@@ -82,7 +82,7 @@ export function questionToRequirement(question: {
     question: question.text,
     status: QUESTION_STATUS_TO_STATUS[question.status],
     tags: [],
-    questionId: question.id,
+    questionId: question.section === "FOLLOW_UP_QUESTIONS" ? question.id : undefined,
   };
 }
 

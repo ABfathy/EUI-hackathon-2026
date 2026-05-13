@@ -66,7 +66,9 @@ function ClientHeader({
 
       {/* Req count — hidden on mobile */}
       <span className="hidden md:block font-mono text-[10.5px] text-fg-4 shrink-0">
-        {reqCount} req · {needsInputCount} need input
+        {needsInputCount === 0
+          ? "All input collected"
+          : `${reqCount} req · ${needsInputCount} need input`}
       </span>
 
       {/* Controls */}

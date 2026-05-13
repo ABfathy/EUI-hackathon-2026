@@ -46,6 +46,7 @@ export interface ChatMessage {
 }
 
 export interface SnapshotSummary {
+  eventId: string;
   id: string | null;
   version: number | null;
   snapshotStatus: string | null;
@@ -83,6 +84,8 @@ export interface RightPaneProps {
     first: { id: string; version: number },
     second: { id: string; version: number },
   ) => void;
+  newFeedbackCount?: number;
+  onClearFeedbackBadge?: () => void;
 }
 
 const TABS: { id: RightTab; label: string }[] = [
@@ -614,6 +617,7 @@ function RevisionsTab({
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [compareBaseId, setCompareBaseId] = useState<string | null>(null);
   const [compareError, setCompareError] = useState<string | null>(null);
+  const [expandedFeedbackId, setExpandedFeedbackId] = useState<string | null>(null);
 
   async function handleRevisionClick(id: string) {
     if (!onViewSnapshot || loadingId) return;
@@ -667,9 +671,28 @@ function RevisionsTab({
     );
   }
 
+  // Group client feedback events by snapshotId — they are shown inside
+  // the BRIEF_CONFIRMED entry rather than as individual timeline items.
+  const feedbackBySnapshot = new Map<string, SnapshotSummary[]>();
+  for (const snap of snapshots) {
+    if (
+      (snap.type === "CLIENT_COMMENT_ADDED" || snap.type === "CLIENT_ANSWER_ADDED") &&
+      snap.id
+    ) {
+      const list = feedbackBySnapshot.get(snap.id) ?? [];
+      list.push(snap);
+      feedbackBySnapshot.set(snap.id, list);
+    }
+  }
+
+  // Only show generation events + BRIEF_CONFIRMED in the timeline
+  const displaySnapshots = snapshots.filter(
+    (s) => s.type !== "CLIENT_COMMENT_ADDED" && s.type !== "CLIENT_ANSWER_ADDED",
+  );
+
   const comparableSnapshots = Array.from(
     new Map(
-      snapshots
+      displaySnapshots
         .filter((snap) => snap.id && snap.version != null)
         .map((snap) => [
           snap.id!,
@@ -686,41 +709,25 @@ function RevisionsTab({
     <>
       <SectionLabel>Revision history</SectionLabel>
 
-      {viewingSnapshotId && (
-        <div className="mx-3 mb-2">
-          <button
-            type="button"
-            onClick={() => void onViewSnapshot?.(null)}
-            className="flex items-center gap-1.5 w-full h-[26px] px-2 rounded-[5px] text-[11px] border transition-colors duration-[120ms] hover:bg-[var(--surface-3)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
-            style={{
-              color: "var(--accent)",
-              borderColor: "color-mix(in srgb, var(--accent) 40%, transparent)",
-              background: "color-mix(in srgb, var(--accent) 8%, transparent)",
-            }}
-          >
-            <Icons.ArrowLeft size={11} aria-hidden="true" />
-            <span>Return to latest</span>
-          </button>
-        </div>
-      )}
-
       <div className="px-3 pb-3">
-        {snapshots.map((snap, idx) => {
+        {displaySnapshots.map((snap, idx) => {
           const isActive = snap.id != null && snap.id === viewingSnapshotId;
-          const isLast = idx === snapshots.length - 1;
+          const isLast = idx === displaySnapshots.length - 1;
           const isChatRevision = snap.trigger === "chat";
-          const isFeedback = snap.type === "CLIENT_COMMENT_ADDED" || snap.type === "CLIENT_ANSWER_ADDED" || snap.type === "BRIEF_CONFIRMED";
+          const isConfirmed = snap.type === "BRIEF_CONFIRMED";
           const isLoadingThis = loadingId === snap.id;
           const isClickable =
-            !!snap.id && !!onViewSnapshot && !isActive && !loadingId;
+            !isConfirmed && !!snap.id && !!onViewSnapshot && !isActive && !loadingId;
           const canCompare =
-            !!snap.id && snap.version != null && !!onCompareSnapshots;
+            !isConfirmed && !!snap.id && snap.version != null && !!onCompareSnapshots;
           const compareOpen = canCompare && compareBaseId === snap.id;
           const compareOptions = comparableSnapshots.filter(
             (item) => item.id !== snap.id,
           );
+          const feedbackItems = snap.id ? (feedbackBySnapshot.get(snap.id) ?? []) : [];
+          const feedbackExpanded = expandedFeedbackId === snap.eventId;
           return (
-            <div key={snap.id ?? `rev-${idx}`}>
+            <div key={snap.eventId ?? `rev-${idx}`}>
               <div
                 className={`flex items-start gap-3 mb-2 rounded-[5px] px-1 -mx-1 transition-colors duration-[100ms] ${isClickable ? "cursor-pointer hover:bg-[var(--surface-3)]" : ""} ${isLoadingThis ? "opacity-70" : ""}`}
                 role={isClickable ? "button" : undefined}
@@ -739,7 +746,7 @@ function RevisionsTab({
                           ? "var(--warning)"
                           : isChatRevision
                             ? "var(--info)"
-                            : isFeedback
+                            : isConfirmed
                               ? "var(--success)"
                               : "var(--fg-muted)",
                       boxShadow: isActive
@@ -763,9 +770,7 @@ function RevisionsTab({
                         className="text-[10px] font-medium shrink-0"
                         style={{
                           fontFamily: "var(--font-mono)",
-                          color: isActive
-                            ? "var(--accent)"
-                            : "var(--fg-tertiary)",
+                          color: isActive ? "var(--accent)" : "var(--fg-tertiary)",
                         }}
                       >
                         v{snap.version}
@@ -774,42 +779,39 @@ function RevisionsTab({
                     <span
                       className="text-[11px] truncate"
                       style={{
-                        color: isActive
-                          ? "var(--fg-primary)"
-                          : "var(--fg-secondary)",
+                        color: isActive ? "var(--fg-primary)" : "var(--fg-secondary)",
                       }}
                     >
                       {isChatRevision && snap.userMessage
-                        ? snap.userMessage.slice(0, 60) +
-                          (snap.userMessage.length > 60 ? "…" : "")
+                        ? snap.userMessage.slice(0, 60) + (snap.userMessage.length > 60 ? "…" : "")
                         : snap.summary}
                     </span>
                   </div>
                   <span
                     className="text-[10px] tabular-nums mt-0.5"
-                    style={{
-                      color: "var(--fg-disabled)",
-                      fontFamily: "var(--font-mono)",
-                    }}
+                    style={{ color: "var(--fg-disabled)", fontFamily: "var(--font-mono)" }}
                   >
                     {relRevTime(snap.createdAt)}
                   </span>
+                  {/* BRIEF_CONFIRMED: show feedback count + expand button */}
+                  {isConfirmed && feedbackItems.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setExpandedFeedbackId(feedbackExpanded ? null : snap.eventId);
+                      }}
+                      className="flex items-center gap-1 mt-1.5 text-[10px] font-medium transition-colors duration-[100ms] cursor-pointer hover:opacity-80 focus-visible:outline-none"
+                      style={{ color: "var(--success)" }}
+                    >
+                      <Icons.MessageSquare size={10} aria-hidden="true" />
+                      <span>
+                        {feedbackItems.length} feedback item{feedbackItems.length !== 1 ? "s" : ""}
+                        {feedbackExpanded ? " — hide" : " — view"}
+                      </span>
+                    </button>
+                  )}
                 </div>
-                {snap.feedbackBody && (
-                  <div
-                    className="mt-1.5 p-2 rounded-[6px] rounded-tl-[2px] text-[12px] leading-relaxed border"
-                    style={{
-                      background: "var(--surface-1)",
-                      borderColor: "var(--border)",
-                      color: "var(--fg-primary)",
-                    }}
-                  >
-                    <div className="text-[10px] font-medium mb-1 uppercase tracking-[0.06em]" style={{ color: "var(--success)" }}>
-                      {snap.feedbackAuthor || "Client"}
-                    </div>
-                    {snap.feedbackBody}
-                  </div>
-                )}
                 {canCompare && (
                   <button
                     type="button"
@@ -818,9 +820,7 @@ function RevisionsTab({
                     onClick={(event) => {
                       event.stopPropagation();
                       setCompareError(null);
-                      setCompareBaseId((current) =>
-                        current === snap.id ? null : snap.id!,
-                      );
+                      setCompareBaseId((current) => current === snap.id ? null : snap.id!);
                     }}
                     className="inline-flex items-center gap-1 h-[22px] px-1.5 rounded-[4px] text-[10px] font-medium transition-colors duration-[120ms] hover:bg-[var(--surface-3)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer shrink-0 mt-0.5"
                     style={{
@@ -833,28 +833,49 @@ function RevisionsTab({
                   </button>
                 )}
               </div>
+
+              {/* Expanded feedback list for BRIEF_CONFIRMED */}
+              {isConfirmed && feedbackExpanded && feedbackItems.length > 0 && (
+                <div className="ml-[22px] mb-3 flex flex-col gap-1.5">
+                  {feedbackItems.map((fb) => (
+                    <div
+                      key={fb.eventId}
+                      className="px-2 py-1.5 rounded-[5px] text-[11px] leading-snug border"
+                      style={{
+                        background: "color-mix(in srgb, var(--success) 5%, var(--surface-1))",
+                        borderColor: "color-mix(in srgb, var(--success) 20%, transparent)",
+                        color: "var(--fg-secondary)",
+                      }}
+                    >
+                      <div className="flex items-center gap-1 mb-0.5">
+                        <span className="text-[9px] font-semibold uppercase tracking-[0.06em]" style={{ color: "var(--success)" }}>
+                          {fb.type === "CLIENT_ANSWER_ADDED" ? "Answer" : "Comment"}
+                        </span>
+                        {fb.feedbackAuthor && (
+                          <span className="text-[9px]" style={{ color: "var(--fg-disabled)" }}>
+                            · {fb.feedbackAuthor}
+                          </span>
+                        )}
+                      </div>
+                      {fb.feedbackBody ?? fb.summary}
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {compareOpen && (
                 <div
                   className="ml-[22px] mr-0 mb-3 rounded-[6px] border p-2"
-                  style={{
-                    background: "var(--surface-1)",
-                    borderColor: "var(--border)",
-                  }}
+                  style={{ background: "var(--surface-1)", borderColor: "var(--border)" }}
                 >
                   <div
                     className="text-[10px] font-medium mb-1.5"
-                    style={{
-                      color: "var(--fg-muted)",
-                      fontFamily: "var(--font-mono)",
-                    }}
+                    style={{ color: "var(--fg-muted)", fontFamily: "var(--font-mono)" }}
                   >
                     Compare v{snap.version} with
                   </div>
                   {compareOptions.length === 0 ? (
-                    <p
-                      className="text-[11px]"
-                      style={{ color: "var(--fg-muted)" }}
-                    >
+                    <p className="text-[11px]" style={{ color: "var(--fg-muted)" }}>
                       No other versions available.
                     </p>
                   ) : (
@@ -886,11 +907,7 @@ function RevisionsTab({
                     </div>
                   )}
                   {compareError && (
-                    <p
-                      className="text-[10px] mt-1.5"
-                      style={{ color: "var(--danger)" }}
-                      role="alert"
-                    >
+                    <p className="text-[10px] mt-1.5" style={{ color: "var(--danger)" }} role="alert">
                       {compareError}
                     </p>
                   )}
@@ -923,6 +940,8 @@ export function RightPane({
   viewingSnapshotId,
   onViewSnapshot,
   onCompareSnapshots,
+  newFeedbackCount = 0,
+  onClearFeedbackBadge,
 }: RightPaneProps) {
   return (
     <aside
@@ -947,7 +966,10 @@ export function RightPane({
             aria-selected={activeTab === tab.id}
             aria-controls={`tab-panel-${tab.id}`}
             id={`tab-${tab.id}`}
-            onClick={() => onTabChange(tab.id)}
+            onClick={() => {
+              onTabChange(tab.id);
+              if (tab.id === "revisions") onClearFeedbackBadge?.();
+            }}
             className="relative h-full px-3 text-[12px] font-medium transition-colors duration-[120ms] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--accent-ring)] cursor-pointer"
             style={{
               color:
@@ -956,7 +978,20 @@ export function RightPane({
                   : "var(--fg-tertiary)",
             }}
           >
-            {tab.label}
+            <span className="flex items-center gap-1.5">
+              {tab.label}
+              {tab.id === "revisions" && newFeedbackCount > 0 && (
+                <span
+                  className="inline-flex items-center justify-center min-w-[16px] h-[14px] px-1 rounded-full text-[9px] font-semibold leading-none"
+                  style={{
+                    background: "var(--success)",
+                    color: "#fff",
+                  }}
+                >
+                  {newFeedbackCount}
+                </span>
+              )}
+            </span>
             {activeTab === tab.id && (
               <span
                 className="absolute bottom-0 left-0 right-0 h-px"
@@ -990,13 +1025,33 @@ export function RightPane({
         )}
         {activeTab === "chat" && <ChatTab messages={chatMessages} />}
         {activeTab === "revisions" && (
-          <RevisionsTab
-            snapshots={snapshots}
-            loading={snapshotsLoading}
-            viewingSnapshotId={viewingSnapshotId}
-            onViewSnapshot={onViewSnapshot}
-            onCompareSnapshots={onCompareSnapshots}
-          />
+          <>
+            {newFeedbackCount > 0 && (
+              <button
+                type="button"
+                onClick={onClearFeedbackBadge}
+                className="flex items-center gap-2 w-full px-3 py-2 text-left text-[11px] font-medium border-b transition-colors duration-[100ms] hover:opacity-80 cursor-pointer"
+                style={{
+                  background: "color-mix(in srgb, var(--success) 10%, var(--surface-2))",
+                  borderColor: "color-mix(in srgb, var(--success) 30%, transparent)",
+                  color: "var(--success)",
+                }}
+              >
+                <span
+                  className="size-[6px] rounded-full shrink-0 animate-pulse"
+                  style={{ background: "var(--success)" }}
+                />
+                {"Client confirmed brief — revision in progress"}
+              </button>
+            )}
+            <RevisionsTab
+              snapshots={snapshots}
+              loading={snapshotsLoading}
+              viewingSnapshotId={viewingSnapshotId}
+              onViewSnapshot={onViewSnapshot}
+              onCompareSnapshots={onCompareSnapshots}
+            />
+          </>
         )}
       </div>
     </aside>

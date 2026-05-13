@@ -35,7 +35,7 @@ interface PublicBriefViewProps {
 }
 
 export function PublicBriefView({ data }: PublicBriefViewProps) {
-  const { shareToken, snapshot, project, claims, questions, revisions } = data;
+  const { shareToken, snapshot, project, claims, questions, revisions, comments } = data;
 
   const requirements = [
     ...claims.map(claimToRequirement),
@@ -47,6 +47,8 @@ export function PublicBriefView({ data }: PublicBriefViewProps) {
   );
 
   const [revOpen, setRevOpen] = useState(false);
+  const [answeredIds, setAnsweredIds] = useState<Set<string>>(new Set());
+  const [answeredTexts, setAnsweredTexts] = useState<Map<string, string>>(new Map());
   const [isConfirming, setIsConfirming] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(
     snapshot.status === "CONFIRMED",
@@ -63,7 +65,9 @@ export function PublicBriefView({ data }: PublicBriefViewProps) {
   const toggleTheme = () =>
     setTheme((theme ?? "dark") === "dark" ? "light" : "dark");
 
-  const needsInputCount = requirements.filter((r) => r.question).length;
+  const needsInputCount = requirements.filter(
+    (r) => r.question && r.questionId && !answeredIds.has(r.questionId),
+  ).length;
 
   const submitComment = async (
     target: {
@@ -126,7 +130,133 @@ export function PublicBriefView({ data }: PublicBriefViewProps) {
       }
       throw mapApiError(res.status, serverMessage);
     }
+
+    setAnsweredIds((prev) => new Set([...prev, questionId]));
+    setAnsweredTexts((prev) => new Map([...prev, [questionId, body]]));
   };
+
+  function handleDownloadPdf() {
+    const projectTitle = project.clientName || project.name;
+    const escape = (s: string) =>
+      s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+    // Build a lookup from questionId → answerText (prefer in-session over server)
+    const answerLookup = new Map<string, string>();
+    for (const q of questions) {
+      if (q.answerText) answerLookup.set(q.id, q.answerText);
+    }
+    for (const [qId, text] of answeredTexts) {
+      answerLookup.set(qId, text);
+    }
+
+    const ambiguities = questions.filter((q) => q.section === "AMBIGUITIES");
+    const followUps = questions.filter((q) => q.section === "FOLLOW_UP_QUESTIONS");
+
+    const renderQuestionSection = (
+      label: string,
+      qs: typeof questions,
+      canAnswer: boolean,
+    ) => {
+      if (qs.length === 0) return "";
+      const rows = qs
+        .map((q) => {
+          const answerText = canAnswer ? answerLookup.get(q.id) : undefined;
+          return `<div class="req-block">
+  <p class="req-reason">${escape(q.reason)}</p>
+  <div class="question-block">
+    <div class="question-label">Question</div>
+    <p class="question-text">${escape(q.text)}</p>
+    ${canAnswer
+      ? answerText
+        ? `<div class="answer-label">Answer</div><p class="answer-text">${escape(answerText)}</p>`
+        : `<p class="answer-empty">No answer provided</p>`
+      : ""}
+  </div>
+</div>`;
+        })
+        .join("\n");
+      return `<h2>${escape(label)}</h2>\n${rows}`;
+    };
+
+    // Build claims sections
+    const claimSectionMap = new Map<string, typeof requirements>();
+    for (const req of requirements.filter((r) => !r.question)) {
+      const list = claimSectionMap.get(req.section) ?? [];
+      list.push(req);
+      claimSectionMap.set(req.section, list);
+    }
+
+    const claimsHtml = Array.from(claimSectionMap.entries())
+      .map(([section, reqs]) => {
+        const rows = reqs.map((r) => `<p class="req">${escape(r.body)}</p>`).join("\n");
+        return `<h2>${escape(section)}</h2>\n${rows}`;
+      })
+      .join("\n");
+
+    const questionsHtml = [
+      renderQuestionSection("Ambiguities", ambiguities, false),
+      renderQuestionSection("Follow-up Questions", followUps, true),
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    // Client comments section
+    const commentsHtml = (() => {
+      if (!comments || comments.length === 0) return "";
+      const rows = comments
+        .map((c) => {
+          const author = c.authorName ?? c.authorEmail ?? "Anonymous";
+          return `<div class="comment-block">
+  <div class="comment-meta">${escape(c.section.toLowerCase().replace(/_/g, " "))} · ${escape(author)}</div>
+  <p class="comment-body">${escape(c.body)}</p>
+</div>`;
+        })
+        .join("\n");
+      return `<h2>Client Comments</h2>\n${rows}`;
+    })();
+
+    const bodyHtml = [claimsHtml, questionsHtml, commentsHtml].filter(Boolean).join("\n");
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>${escape(projectTitle)} — Brief v${snapshot.version}</title>
+<style>
+  body{font-family:system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 24px;color:#111;line-height:1.6}
+  h1{font-size:22px;font-weight:700;margin:0 0 4px}
+  .meta{font-size:11px;color:#999;font-family:monospace;margin:0 0 20px}
+  h2{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#666;margin:28px 0 8px;border-top:1px solid #eee;padding-top:16px}
+  .req{font-size:14px;margin:0 0 10px}
+  .req-block{margin:0 0 16px}
+  .req-reason{font-size:14px;margin:0 0 8px}
+  .question-block{border-left:3px solid #f59e0b;padding:8px 12px;background:#fefce8;border-radius:0 4px 4px 0;margin-bottom:4px}
+  .question-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#d97706;margin-bottom:4px}
+  .question-text{font-size:13px;margin:0 0 8px;color:#374151}
+  .answer-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#059669;margin-bottom:4px}
+  .answer-text{font-size:13px;margin:0;color:#111;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:4px;padding:6px 10px}
+  .answer-empty{font-size:12px;color:#9ca3af;font-style:italic;margin:0}
+  .comment-block{margin:0 0 12px;border-left:3px solid #6366f1;padding:6px 12px;background:#f5f3ff}
+  .comment-meta{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#7c3aed;margin-bottom:4px}
+  .comment-body{font-size:13px;margin:0;color:#374151}
+  @media print{body{margin:20px}}
+</style></head><body>
+<h1>${escape(projectTitle)}</h1>
+<div class="meta">${escape(project.name)} · v${snapshot.version} · shared for review</div>
+${bodyHtml}
+</body></html>`;
+
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:none";
+    document.body.appendChild(iframe);
+    const doc = iframe.contentDocument ?? iframe.contentWindow?.document;
+    if (!doc) { document.body.removeChild(iframe); return; }
+    doc.open();
+    doc.write(html);
+    doc.close();
+    iframe.contentWindow?.focus();
+    setTimeout(() => {
+      iframe.contentWindow?.print();
+      setTimeout(() => document.body.removeChild(iframe), 1000);
+    }, 250);
+  }
 
   const submitConfirmation = async (): Promise<void> => {
     if (!shareToken || isConfirming || isConfirmed) return;
@@ -200,6 +330,7 @@ export function PublicBriefView({ data }: PublicBriefViewProps) {
           requirements={requirements}
           onSubmitComment={submitComment}
           onSubmitAnswer={submitAnswer}
+          onDownloadPdf={handleDownloadPdf}
           isConfirming={isConfirming}
           isConfirmed={isConfirmed}
           confirmError={confirmError}

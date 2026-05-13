@@ -38,18 +38,20 @@ interface ClientDocProps {
    * Should throw a string message on error to surface inline feedback.
    */
   onSubmitAnswer?: (questionId: string, body: string) => Promise<void>;
+  onDownloadPdf?: () => void;
   isConfirming?: boolean;
   isConfirmed?: boolean;
   confirmError?: string | null;
   onSubmitConfirmation?: () => void;
 }
 
-function ClientDoc({ 
-  title, 
-  meta, 
-  requirements, 
-  onSubmitComment, 
+function ClientDoc({
+  title,
+  meta,
+  requirements,
+  onSubmitComment,
   onSubmitAnswer,
+  onDownloadPdf,
   isConfirming,
   isConfirmed,
   confirmError,
@@ -102,7 +104,7 @@ function ClientDoc({
             <span className="text-sm text-destructive mr-auto text-right sm:text-left">{confirmError}</span>
           )}
           <div className="flex justify-end gap-2">
-            <Button variant="secondary">Download PDF</Button>
+            <Button variant="secondary" onClick={onDownloadPdf} disabled={!onDownloadPdf}>Download PDF</Button>
             {isConfirmed ? (
               <Button variant="secondary" disabled>
                 <Check size={13} />

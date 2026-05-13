@@ -36,6 +36,7 @@ export interface ChatMessage {
 }
 
 export interface SnapshotSummary {
+  eventId: string;
   id: string | null;
   version: number | null;
   snapshotStatus: string | null;
@@ -266,6 +267,11 @@ export function EditorShell({
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [extractStatus, setExtractStatus] = useState<"idle" | "queued" | "running" | "failed">("idle");
   const jobPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const feedbackPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastFeedbackCountRef = useRef(0);
+  const [newFeedbackCount, setNewFeedbackCount] = useState(0);
+  const shouldPollFeedbackRef = useRef(false);
+  const latestSnapshotIdRef = useRef<string | null>(initialSnapshotId ?? null);
   const [streamingLines, setStreamingLines] = useState<DocLineData[] | null>(null);
   const [revising, setRevising] = useState(false);
   const [currentSnapshotId, setCurrentSnapshotId] = useState<string | null>(
@@ -506,6 +512,7 @@ export function EditorShell({
       // All revisions go to the revisions tab
       setSnapshots(
         allRevisions.map((r) => ({
+          eventId: r.id,
           id: r.snapshotId,
           version: r.version,
           snapshotStatus: r.snapshotStatus,
@@ -518,6 +525,26 @@ export function EditorShell({
           feedbackAuthor: r.feedbackAuthor,
         })),
       );
+
+      // Track the latest generated snapshot so Return-to-latest can reset correctly
+      const latestGenerated = [...allRevisions]
+        .reverse()
+        .find((r) => (r.type === "GENERATED" || r.type === "REGENERATED") && r.snapshotId);
+      if (latestGenerated?.snapshotId) {
+        latestSnapshotIdRef.current = latestGenerated.snapshotId;
+      }
+
+      // Detect new client activity since last load (BRIEF_CONFIRMED triggers auto-revise)
+      const feedbackCount = allRevisions.filter(
+        (r) =>
+          r.type === "CLIENT_COMMENT_ADDED" ||
+          r.type === "CLIENT_ANSWER_ADDED" ||
+          r.type === "BRIEF_CONFIRMED",
+      ).length;
+      if (feedbackCount > lastFeedbackCountRef.current) {
+        setNewFeedbackCount((prev) => prev + (feedbackCount - lastFeedbackCountRef.current));
+      }
+      lastFeedbackCountRef.current = feedbackCount;
     } catch {
       // silently fail — not critical
     } finally {
@@ -529,6 +556,13 @@ export function EditorShell({
     if (jobPollRef.current !== null) {
       clearInterval(jobPollRef.current);
       jobPollRef.current = null;
+    }
+  }, []);
+
+  const stopFeedbackPoll = useCallback(() => {
+    if (feedbackPollRef.current !== null) {
+      clearInterval(feedbackPollRef.current);
+      feedbackPollRef.current = null;
     }
   }, []);
 
@@ -633,7 +667,10 @@ export function EditorShell({
 
       stopJobPoll();
       setExtractStatus("idle");
-      if (newSnapshotId) setCurrentSnapshotId(newSnapshotId);
+      if (newSnapshotId) {
+        latestSnapshotIdRef.current = newSnapshotId;
+        setCurrentSnapshotId(newSnapshotId);
+      }
       if (sessionId) await loadRevisions(sessionId);
       await refreshSources();
 
@@ -698,6 +735,7 @@ export function EditorShell({
           newSnapshotId = result.snapshotId;
         }
 
+        latestSnapshotIdRef.current = newSnapshotId;
         setCurrentSnapshotId(newSnapshotId);
         setSelectedReq(null);
         setClientLines(null);
@@ -725,6 +763,29 @@ export function EditorShell({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (sessionId) void loadRevisions(sessionId);
   }, [sessionId, loadRevisions]);
+
+  // Reset feedback badge and counter when session changes
+  useEffect(() => {
+    lastFeedbackCountRef.current = 0;
+    setNewFeedbackCount(0);
+    shouldPollFeedbackRef.current = false;
+  }, [sessionId]);
+
+  // Keep shouldPollFeedbackRef in sync with snapshot SHARED status (no interval restart needed)
+  useEffect(() => {
+    shouldPollFeedbackRef.current = snapshots.some((s) => s.snapshotStatus === "SHARED");
+  }, [snapshots]);
+
+  // One stable 30s interval per session — only fires loadRevisions when SHARED
+  useEffect(() => {
+    if (!sessionId) return;
+    feedbackPollRef.current = setInterval(() => {
+      if (shouldPollFeedbackRef.current) {
+        void loadRevisions(sessionId);
+      }
+    }, 30_000);
+    return () => stopFeedbackPoll();
+  }, [sessionId, loadRevisions, stopFeedbackPoll]);
 
   // Clear streaming lines once the server-refreshed lines arrive, preventing
   // the flash from streamed content → empty state → server content.
@@ -895,9 +956,14 @@ export function EditorShell({
 
   const handleSelectRevision = useCallback(
     async (snapshotId: string | null) => {
-      if (!snapshotId) {
+      const isLatest =
+        !snapshotId || snapshotId === latestSnapshotIdRef.current;
+      if (isLatest) {
         setClientLines(null);
         setViewingVersion(null);
+        if (latestSnapshotIdRef.current) {
+          setCurrentSnapshotId(latestSnapshotIdRef.current);
+        }
         return;
       }
       if (snapshotId === currentSnapshotId) return;
@@ -1213,8 +1279,8 @@ ${lines.map((l) => {
     setActiveWorkspaceTab(DRAFT_TAB_ID);
   }, [sessionId]);
 
-  // Clean up any in-flight job poll when the component unmounts
-  useEffect(() => () => { stopJobPoll(); }, [stopJobPoll]);
+  // Clean up polls when the component unmounts
+  useEffect(() => () => { stopJobPoll(); stopFeedbackPoll(); }, [stopJobPoll, stopFeedbackPoll]);
 
   const colTemplate = [
     sidebarOpen ? `${sidebarWidth}px` : "0px",
@@ -1347,6 +1413,8 @@ ${lines.map((l) => {
               viewingSnapshotId={currentSnapshotId}
               onViewSnapshot={handleSelectRevision}
               onCompareSnapshots={handleOpenComparison}
+              newFeedbackCount={newFeedbackCount}
+              onClearFeedbackBadge={() => setNewFeedbackCount(0)}
             />
           )}
         </div>

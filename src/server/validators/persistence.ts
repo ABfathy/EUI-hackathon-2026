@@ -45,9 +45,4 @@ export function assertFollowUpAnswerConsistency(input: {
     );
   }
 
-  if (input.questionSection !== "FOLLOW_UP_QUESTIONS") {
-    throw new Error(
-      "FollowUpAnswer can only target questions in the FOLLOW_UP_QUESTIONS section.",
-    );
-  }
 }

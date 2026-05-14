@@ -209,7 +209,7 @@ model BriefComment {
   authorEmail   String?
   body          String                 @db.Text
   status        BriefCommentStatus     @default(OPEN)
-  reviewStatus  FeedbackReviewStatus?
+  reviewStatus  FeedbackReviewStatus   @default(PENDING)
   createdAt     DateTime               @default(now())
   updatedAt     DateTime               @updatedAt
   snapshot      BriefSnapshot          @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
@@ -227,7 +227,7 @@ model FollowUpAnswer {
   body         String               @db.Text
   authorName   String?
   authorEmail  String?
-  reviewStatus FeedbackReviewStatus?
+  reviewStatus FeedbackReviewStatus @default(PENDING)
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
   snapshot     BriefSnapshot        @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
@@ -411,6 +411,12 @@ enum BriefCommentStatus {
   OPEN
   ACKNOWLEDGED
   RESOLVED
+}
+
+enum FeedbackReviewStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
 }
 
 enum RevisionEventType {

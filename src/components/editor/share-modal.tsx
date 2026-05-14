@@ -7,9 +7,10 @@ import { Icons } from "@/components/icons";
 interface ShareModalProps {
   snapshotId: string;
   onClose: () => void;
+  onShareCreated?: () => void;
 }
 
-export function ShareModal({ snapshotId, onClose }: ShareModalProps) {
+export function ShareModal({ snapshotId, onClose, onShareCreated }: ShareModalProps) {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [shareUrl, setShareUrl] = useState("");
   const [copied, setCopied] = useState(false);
@@ -35,6 +36,7 @@ export function ShareModal({ snapshotId, onClose }: ShareModalProps) {
         if (cancelled) return;
         setShareUrl(data.url);
         setState("ready");
+        onShareCreated?.();
       })
       .catch(() => {
         if (!cancelled) setState("error");
@@ -42,6 +44,7 @@ export function ShareModal({ snapshotId, onClose }: ShareModalProps) {
     return () => {
       cancelled = true;
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snapshotId]);
 
   function handleCopy() {

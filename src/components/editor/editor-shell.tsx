@@ -52,6 +52,15 @@ export interface SnapshotSummary {
   userMessage: string | null;
   feedbackBody?: string | null;
   feedbackAuthor?: string | null;
+  feedbackReviewStatus?: string | null;
+  feedbackItemId?: string | null;
+  feedbackItemType?: "comment" | "answer" | null;
+}
+
+interface WorkspaceFeedbackTab {
+  id: string;
+  snapshotId: string;
+  label: string;
 }
 
 type SessionRef = { id: string; title: string } | null;
@@ -276,7 +285,10 @@ export function EditorShell({
   const jobPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const feedbackPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastFeedbackCountRef = useRef(0);
+  const seenEventIdsRef = useRef<Set<string>>(new Set());
   const [newFeedbackCount, setNewFeedbackCount] = useState(0);
+  const [hasPendingFeedback, setHasPendingFeedback] = useState(false);
+  const [pendingFeedbackSnapshotId, setPendingFeedbackSnapshotId] = useState<string | null>(null);
   const shouldPollFeedbackRef = useRef(false);
   const latestSnapshotIdRef = useRef<string | null>(initialSnapshotId ?? null);
   const [streamingLines, setStreamingLines] = useState<DocLineData[] | null>(
@@ -302,7 +314,9 @@ export function EditorShell({
     null,
   );
   const [comparisonTabs, setComparisonTabs] = useState<ComparisonTab[]>([]);
+  const [feedbackTabs, setFeedbackTabs] = useState<WorkspaceFeedbackTab[]>([]);
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState(DRAFT_TAB_ID);
+  const [regeneratedSnapshotIds, setRegeneratedSnapshotIds] = useState<Set<string>>(new Set());
 
   const [activeProjectId, setActiveProjectId] = useState<string | null>(
     initialActiveProjectId,
@@ -511,8 +525,8 @@ export function EditorShell({
     [sessionId, startUpload, refreshSources],
   );
 
-  const loadRevisions = useCallback(async (sid: string) => {
-    setRevisionsLoading(true);
+  const loadRevisions = useCallback(async (sid: string, silent = false) => {
+    if (!silent) setRevisionsLoading(true);
     try {
       const res = await fetch(`/api/sessions/${sid}/revisions`, {
         cache: "no-store",
@@ -532,6 +546,9 @@ export function EditorShell({
           selectionText: string | null;
           feedbackBody: string | null;
           feedbackAuthor: string | null;
+          feedbackReviewStatus: string | null;
+          feedbackItemId: string | null;
+          feedbackItemType: "comment" | "answer" | null;
         }>;
       };
       const allRevisions = data.revisions ?? [];
@@ -565,6 +582,9 @@ export function EditorShell({
           userMessage: r.userMessage,
           feedbackBody: r.feedbackBody,
           feedbackAuthor: r.feedbackAuthor,
+          feedbackReviewStatus: r.feedbackReviewStatus,
+          feedbackItemId: r.feedbackItemId,
+          feedbackItemType: r.feedbackItemType,
         })),
       );
 
@@ -580,23 +600,47 @@ export function EditorShell({
         latestSnapshotIdRef.current = latestGenerated.snapshotId;
       }
 
-      // Detect new client activity since last load (BRIEF_CONFIRMED triggers auto-revise)
-      const feedbackCount = allRevisions.filter(
-        (r) =>
-          r.type === "CLIENT_COMMENT_ADDED" ||
-          r.type === "CLIENT_ANSWER_ADDED" ||
-          r.type === "BRIEF_CONFIRMED",
-      ).length;
-      if (feedbackCount > lastFeedbackCountRef.current) {
-        setNewFeedbackCount(
-          (prev) => prev + (feedbackCount - lastFeedbackCountRef.current),
-        );
+      // Detect new client feedback events
+      const feedbackIds = new Set(
+        allRevisions
+          .filter(
+            (r) =>
+              r.type === "CLIENT_COMMENT_ADDED" ||
+              r.type === "CLIENT_ANSWER_ADDED" ||
+              r.type === "BRIEF_CONFIRMED",
+          )
+          .map((r) => r.id),
+      );
+
+      const isFirstLoad = seenEventIdsRef.current.size === 0;
+      const newFeedback = [...feedbackIds].filter((id) => !seenEventIdsRef.current.has(id));
+
+      if (isFirstLoad) {
+        // Initialize seen IDs without showing notification
+        for (const id of feedbackIds) seenEventIdsRef.current.add(id);
+      } else if (newFeedback.length > 0) {
+        for (const id of newFeedback) seenEventIdsRef.current.add(id);
+        // Find the snapshot the new feedback belongs to
+        const latestFeedback = [...allRevisions]
+          .reverse()
+          .find(
+            (r) =>
+              (r.type === "BRIEF_CONFIRMED" ||
+                r.type === "CLIENT_ANSWER_ADDED" ||
+                r.type === "CLIENT_COMMENT_ADDED") &&
+              r.snapshotId,
+          );
+        setPendingFeedbackSnapshotId(latestFeedback?.snapshotId ?? null);
+        setHasPendingFeedback(true);
+        setNewFeedbackCount((prev) => prev + newFeedback.length);
       }
+
+      const feedbackCount = feedbackIds.size;
       lastFeedbackCountRef.current = feedbackCount;
     } catch {
       // silently fail — not critical
     } finally {
-      setRevisionsLoading(false);
+      if (!silent) setRevisionsLoading(false);
     }
   }, []);
 
@@ -908,25 +952,26 @@ export function EditorShell({
   // Reset feedback badge and counter when session changes
   useEffect(() => {
     lastFeedbackCountRef.current = 0;
+    seenEventIdsRef.current = new Set();
     setNewFeedbackCount(0);
+    setHasPendingFeedback(false);
+    setPendingFeedbackSnapshotId(null);
     shouldPollFeedbackRef.current = false;
   }, [sessionId]);
 
-  // Keep shouldPollFeedbackRef in sync with snapshot SHARED status (no interval restart needed)
+  // Poll whenever there's at least one snapshot (share may have happened, clients may be active)
   useEffect(() => {
-    shouldPollFeedbackRef.current = snapshots.some(
-      (s) => s.snapshotStatus === "SHARED",
-    );
+    shouldPollFeedbackRef.current = snapshots.some((s) => s.id != null);
   }, [snapshots]);
 
-  // One stable 30s interval per session — only fires loadRevisions when SHARED
+  // Poll every 15s — fires loadRevisions when session has any snapshot
   useEffect(() => {
     if (!sessionId) return;
     feedbackPollRef.current = setInterval(() => {
       if (shouldPollFeedbackRef.current) {
-        void loadRevisions(sessionId);
+        void loadRevisions(sessionId, true);
       }
-    }, 30_000);
+    }, 15_000);
     return () => stopFeedbackPoll();
   }, [sessionId, loadRevisions, stopFeedbackPoll]);
 
@@ -1026,6 +1071,65 @@ export function EditorShell({
         const next = prev.filter((tab) => tab.id !== id);
         if (activeWorkspaceTab === id) {
           setActiveWorkspaceTab(next[next.length - 1]?.id ?? DRAFT_TAB_ID);
+        }
+        return next;
+      });
+    },
+    [activeWorkspaceTab],
+  );
+
+  const handleFeedbackRegenerate = useCallback(async (snapshotId: string) => {
+    if (!sessionId) return;
+    setRegeneratedSnapshotIds((prev) => new Set([...prev, snapshotId]));
+    setActiveWorkspaceTab(DRAFT_TAB_ID);
+    setRevising(true);
+    setClientLines(null);
+    setGenerationError(null);
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/regenerate-from-feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ snapshotId }),
+      });
+      const data = await res.json() as { ok?: boolean; snapshotId?: string; message?: string };
+      if (!res.ok) {
+        setGenerationError(data.message ?? "Regeneration failed. Please try again.");
+        return;
+      }
+      const newSnapshotId = data.snapshotId;
+      if (newSnapshotId) {
+        latestSnapshotIdRef.current = newSnapshotId;
+        setCurrentSnapshotId(newSnapshotId);
+        setViewingVersion(null);
+        const snap = await fetch(`/api/snapshots/${newSnapshotId}`, { cache: "no-store" });
+        if (snap.ok) {
+          const snapData = await snap.json() as { lines: DocLineData[]; version: number };
+          setClientLines(snapData.lines);
+        }
+        void loadRevisions(sessionId, true);
+      }
+    } catch {
+      setGenerationError("Network error. Please try again.");
+    } finally {
+      setRevising(false);
+    }
+  }, [sessionId, loadRevisions]);
+
+  const handleOpenFeedbackTab = useCallback((snapshotId: string) => {
+    const id = `feedback-${snapshotId}`;
+    setFeedbackTabs((prev) => {
+      if (prev.find((t) => t.id === id)) return prev;
+      return [...prev, { id, snapshotId, label: "Feedback" }];
+    });
+    setActiveWorkspaceTab(id);
+  }, []);
+
+  const handleCloseFeedbackTab = useCallback(
+    (id: string) => {
+      setFeedbackTabs((prev) => {
+        const next = prev.filter((t) => t.id !== id);
+        if (activeWorkspaceTab === id) {
+          setActiveWorkspaceTab(DRAFT_TAB_ID);
         }
         return next;
       });
@@ -1150,6 +1254,7 @@ export function EditorShell({
         setChatMessages([]);
         setSnapshots([]);
         setComparisonTabs([]);
+        setFeedbackTabs([]);
         setActiveWorkspaceTab(DRAFT_TAB_ID);
         if (typeof window !== "undefined") {
           window.history.replaceState({}, "", `/app?projectId=${id}`);
@@ -1438,7 +1543,9 @@ ${lines
     setClientLines(null);
     setChatMessages([]);
     setComparisonTabs([]);
+    setFeedbackTabs([]);
     setActiveWorkspaceTab(DRAFT_TAB_ID);
+    setRegeneratedSnapshotIds(new Set());
   }, [sessionId]);
 
   // Clean up polls when the component unmounts
@@ -1470,6 +1577,55 @@ ${lines
         onToggleTheme={toggleTheme}
         onOpenPalette={() => setPaletteOpen(true)}
       />
+
+      {/* New-feedback notification banner */}
+      {hasPendingFeedback && (
+        <div
+          className="flex items-center justify-between px-4 py-2 shrink-0 text-[12px]"
+          style={{
+            background: "color-mix(in srgb, var(--info) 12%, var(--surface-1))",
+            borderBottom: "1px solid color-mix(in srgb, var(--info) 30%, transparent)",
+            color: "var(--fg-secondary)",
+          }}
+          role="status"
+          aria-live="polite"
+        >
+          <span className="flex items-center gap-2">
+            <span
+              className="size-[6px] rounded-full shrink-0 animate-pulse"
+              style={{ background: "var(--info)" }}
+            />
+            New client feedback received — review and accept or decline items to regenerate.
+          </span>
+          <div className="flex items-center gap-2">
+            {pendingFeedbackSnapshotId && (
+              <button
+                type="button"
+                onClick={() => {
+                  handleOpenFeedbackTab(pendingFeedbackSnapshotId);
+                  setHasPendingFeedback(false);
+                }}
+                className="text-[11px] font-medium px-2 py-0.5 rounded transition-colors cursor-pointer"
+                style={{
+                  background: "var(--info)",
+                  color: "#fff",
+                }}
+              >
+                Review Feedback
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setHasPendingFeedback(false)}
+              className="text-[11px] opacity-60 hover:opacity-100 transition-opacity cursor-pointer"
+              style={{ color: "var(--fg-muted)" }}
+              aria-label="Dismiss notification"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
 
       <div
         className="flex-1 overflow-hidden"
@@ -1552,10 +1708,15 @@ ${lines
             id: tab.id,
             title: tab.title,
           }))}
+          feedbackTabs={feedbackTabs}
+          regeneratedSnapshotIds={regeneratedSnapshotIds}
           activeWorkspaceTab={activeWorkspaceTab}
           activeComparisonContent={activeComparisonContent}
           onSelectWorkspaceTab={setActiveWorkspaceTab}
           onCloseComparisonTab={handleCloseComparisonTab}
+          onCloseFeedbackTab={handleCloseFeedbackTab}
+          sessionId={session?.id}
+          onRequestRegenerate={handleFeedbackRegenerate}
           onOpenSource={(id) => {
             const s = sources.find((src) => src.id === id);
             if (s) setPreviewItem(s);
@@ -1597,6 +1758,7 @@ ${lines
               onCompareSnapshots={handleOpenComparison}
               newFeedbackCount={newFeedbackCount}
               onClearFeedbackBadge={() => setNewFeedbackCount(0)}
+              onOpenFeedbackTab={handleOpenFeedbackTab}
             />
           )}
         </div>
@@ -1639,6 +1801,7 @@ ${lines
         <ShareModal
           snapshotId={currentSnapshotId}
           onClose={() => setShareModalOpen(false)}
+          onShareCreated={() => { if (sessionId) void loadRevisions(sessionId); }}
         />
       )}
       {settingsOpen && activeProjectId && (

@@ -54,15 +54,15 @@ export async function GET(
     const [comments, answers] = await Promise.all([
       commentIds.length > 0
         ? prisma.briefComment.findMany({
-            where: { id: { in: commentIds } },
-            select: { id: true, body: true, authorName: true },
-          })
+          where: { id: { in: commentIds } },
+          select: { id: true, body: true, authorName: true, reviewStatus: true },
+        })
         : [],
       answerIds.length > 0
         ? prisma.followUpAnswer.findMany({
-            where: { id: { in: answerIds } },
-            select: { id: true, body: true, authorName: true },
-          })
+          where: { id: { in: answerIds } },
+          select: { id: true, body: true, authorName: true, reviewStatus: true },
+        })
         : [],
     ]);
 
@@ -74,14 +74,18 @@ export async function GET(
       let feedbackBody: string | null = null;
       let feedbackAuthor: string | null = null;
 
-      if (
-        evt.type === "CLIENT_COMMENT_ADDED" &&
-        typeof meta.commentId === "string"
-      ) {
+      let feedbackReviewStatus: string | null = null;
+      let feedbackItemId: string | null = null;
+      let feedbackItemType: "comment" | "answer" | null = null;
+
+      if (evt.type === "CLIENT_COMMENT_ADDED" && typeof meta.commentId === "string") {
         const c = commentMap.get(meta.commentId);
         if (c) {
           feedbackBody = c.body;
           feedbackAuthor = c.authorName;
+          feedbackReviewStatus = c.reviewStatus;
+          feedbackItemId = c.id;
+          feedbackItemType = "comment";
         }
       } else if (
         evt.type === "CLIENT_ANSWER_ADDED" &&
@@ -91,6 +95,9 @@ export async function GET(
         if (a) {
           feedbackBody = a.body;
           feedbackAuthor = a.authorName;
+          feedbackReviewStatus = a.reviewStatus;
+          feedbackItemId = a.id;
+          feedbackItemType = "answer";
         }
       }
 
@@ -110,6 +117,9 @@ export async function GET(
           typeof meta.selectionText === "string" ? meta.selectionText : null,
         feedbackBody,
         feedbackAuthor,
+        feedbackReviewStatus,
+        feedbackItemId,
+        feedbackItemType,
       };
     });
 

@@ -212,7 +212,7 @@ export function PublicBriefView({ data }: PublicBriefViewProps) {
       .join("\n");
 
     const questionsHtml = [
-      renderQuestionSection("Ambiguities", ambiguities, false),
+      renderQuestionSection("Ambiguities", ambiguities, true),
       renderQuestionSection("Follow-up Questions", followUps, true),
     ]
       .filter(Boolean)

@@ -57,6 +57,9 @@ export interface SnapshotSummary {
   userMessage: string | null;
   feedbackBody?: string | null;
   feedbackAuthor?: string | null;
+  feedbackReviewStatus?: string | null;
+  feedbackItemId?: string | null;
+  feedbackItemType?: "comment" | "answer" | null;
 }
 
 export interface RightPaneProps {
@@ -86,6 +89,7 @@ export interface RightPaneProps {
   ) => void;
   newFeedbackCount?: number;
   onClearFeedbackBadge?: () => void;
+  onOpenFeedbackTab?: (snapshotId: string) => void;
 }
 
 const TABS: { id: RightTab; label: string }[] = [
@@ -727,6 +731,8 @@ function RevisionsTab({
   viewingSnapshotId,
   onViewSnapshot,
   onCompareSnapshots,
+  sessionId,
+  onOpenFeedbackTab,
 }: {
   snapshots?: SnapshotSummary[];
   loading?: boolean;
@@ -736,13 +742,39 @@ function RevisionsTab({
     first: { id: string; version: number },
     second: { id: string; version: number },
   ) => void;
+  sessionId?: string;
+  onOpenFeedbackTab?: (snapshotId: string) => void;
 }) {
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [compareBaseId, setCompareBaseId] = useState<string | null>(null);
   const [compareError, setCompareError] = useState<string | null>(null);
-  const [expandedFeedbackId, setExpandedFeedbackId] = useState<string | null>(
-    null,
-  );
+  const [expandedFeedbackId, setExpandedFeedbackId] = useState<string | null>(null);
+  const [reviewingSnapshotId, setReviewingSnapshotId] = useState<string | null>(null);
+  const [batchReviewedIds, setBatchReviewedIds] = useState<Set<string>>(new Set());
+
+  async function handleBatchReview(snapshotFeedback: SnapshotSummary[], status: "ACCEPTED" | "DECLINED") {
+    if (!sessionId) return;
+    const items = snapshotFeedback
+      .filter((fb) => fb.feedbackItemId && fb.feedbackItemType)
+      .map((fb) => ({
+        type: fb.feedbackItemType!,
+        id: fb.feedbackItemId!,
+        status,
+      }));
+    if (items.length === 0) return;
+    const snapshotId = snapshotFeedback[0]?.id ?? null;
+    setReviewingSnapshotId(snapshotId);
+    try {
+      await fetch(`/api/sessions/${sessionId}/feedback-review`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items }),
+      });
+      if (snapshotId) setBatchReviewedIds((prev) => new Set([...prev, snapshotId]));
+    } finally {
+      setReviewingSnapshotId(null);
+    }
+  }
 
   async function handleRevisionClick(id: string) {
     if (!onViewSnapshot || loadingId) return;
@@ -862,6 +894,12 @@ function RevisionsTab({
             ? (feedbackBySnapshot.get(snap.id) ?? [])
             : [];
           const feedbackExpanded = expandedFeedbackId === snap.eventId;
+          const allFeedbackReviewed =
+            feedbackItems.length > 0 &&
+            feedbackItems.every(
+              (fb) => fb.feedbackReviewStatus === "ACCEPTED" || fb.feedbackReviewStatus === "DECLINED",
+            );
+          const hideReviewButtons = allFeedbackReviewed || batchReviewedIds.has(snap.id ?? "");
           return (
             <div key={snap.eventId ?? `rev-${idx}`}>
               <div
@@ -950,26 +988,48 @@ function RevisionsTab({
                   >
                     {relRevTime(snap.createdAt)}
                   </span>
-                  {/* BRIEF_CONFIRMED: show feedback count + expand button */}
+                  {/* BRIEF_CONFIRMED: feedback controls */}
                   {isConfirmed && feedbackItems.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setExpandedFeedbackId(
-                          feedbackExpanded ? null : snap.eventId,
-                        );
-                      }}
-                      className="flex items-center gap-1 mt-1.5 text-[10px] font-medium transition-colors duration-[100ms] cursor-pointer hover:opacity-80 focus-visible:outline-none"
-                      style={{ color: "var(--success)" }}
-                    >
-                      <Icons.MessageSquare size={10} aria-hidden="true" />
-                      <span>
-                        {feedbackItems.length} feedback item
-                        {feedbackItems.length !== 1 ? "s" : ""}
-                        {feedbackExpanded ? " — hide" : " — view"}
-                      </span>
-                    </button>
+                    <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setExpandedFeedbackId(feedbackExpanded ? null : snap.eventId);
+                        }}
+                        className="flex items-center gap-1 text-[10px] font-medium transition-colors duration-[100ms] cursor-pointer hover:opacity-80 focus-visible:outline-none"
+                        style={{ color: "var(--success)" }}
+                      >
+                        <Icons.MessageSquare size={10} aria-hidden="true" />
+                        <span>
+                          {feedbackItems.length} feedback{feedbackExpanded ? " — hide" : " — view"}
+                        </span>
+                      </button>
+                      {sessionId && !hideReviewButtons && (
+                        <div className="flex items-center gap-1 ml-auto">
+                          <button
+                            type="button"
+                            disabled={reviewingSnapshotId === snap.id}
+                            onClick={(e) => { e.stopPropagation(); void handleBatchReview(feedbackItems, "ACCEPTED"); }}
+                            className="text-[9px] font-medium px-1.5 py-0.5 rounded transition-colors disabled:opacity-50 cursor-pointer"
+                            style={{ background: "var(--success-subtle)", color: "var(--success)", border: "1px solid var(--success)33" }}
+                            title="Accept all feedback for this revision"
+                          >
+                            Accept all
+                          </button>
+                          <button
+                            type="button"
+                            disabled={reviewingSnapshotId === snap.id}
+                            onClick={(e) => { e.stopPropagation(); void handleBatchReview(feedbackItems, "DECLINED"); }}
+                            className="text-[9px] font-medium px-1.5 py-0.5 rounded transition-colors disabled:opacity-50 cursor-pointer"
+                            style={{ background: "var(--danger-subtle)", color: "var(--danger)", border: "1px solid var(--danger)33" }}
+                            title="Decline all feedback for this revision"
+                          >
+                            Decline all
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
                 {canCompare && (
@@ -1003,39 +1063,72 @@ function RevisionsTab({
               {/* Expanded feedback list for BRIEF_CONFIRMED */}
               {isConfirmed && feedbackExpanded && feedbackItems.length > 0 && (
                 <div className="ml-[22px] mb-3 flex flex-col gap-1.5">
-                  {feedbackItems.map((fb) => (
-                    <div
-                      key={fb.eventId}
-                      className="px-2 py-1.5 rounded-[5px] text-[11px] leading-snug border"
-                      style={{
-                        background:
-                          "color-mix(in srgb, var(--success) 5%, var(--surface-1))",
-                        borderColor:
-                          "color-mix(in srgb, var(--success) 20%, transparent)",
-                        color: "var(--fg-secondary)",
-                      }}
-                    >
-                      <div className="flex items-center gap-1 mb-0.5">
-                        <span
-                          className="text-[9px] font-semibold uppercase tracking-[0.06em]"
-                          style={{ color: "var(--success)" }}
-                        >
-                          {fb.type === "CLIENT_ANSWER_ADDED"
-                            ? "Answer"
-                            : "Comment"}
-                        </span>
-                        {fb.feedbackAuthor && (
+                  {feedbackItems.slice(0, 5).map((fb) => {
+                    const rs = fb.feedbackReviewStatus ?? "PENDING";
+                    const dotColor = rs === "ACCEPTED" ? "var(--success)" : rs === "DECLINED" ? "var(--danger)" : "var(--warning)";
+                    const bgColor = rs === "ACCEPTED"
+                      ? "color-mix(in srgb, var(--success) 5%, var(--surface-1))"
+                      : rs === "DECLINED"
+                        ? "color-mix(in srgb, var(--danger) 5%, var(--surface-1))"
+                        : "color-mix(in srgb, var(--warning) 5%, var(--surface-1))";
+                    const borderColor = rs === "ACCEPTED"
+                      ? "color-mix(in srgb, var(--success) 20%, transparent)"
+                      : rs === "DECLINED"
+                        ? "color-mix(in srgb, var(--danger) 20%, transparent)"
+                        : "color-mix(in srgb, var(--warning) 20%, transparent)";
+                    return (
+                      <div
+                        key={fb.eventId}
+                        className="px-2 py-1.5 rounded-[5px] text-[11px] leading-snug border"
+                        style={{ background: bgColor, borderColor, color: "var(--fg-secondary)" }}
+                      >
+                        <div className="flex items-center gap-1 mb-0.5">
                           <span
-                            className="text-[9px]"
-                            style={{ color: "var(--fg-disabled)" }}
-                          >
-                            · {fb.feedbackAuthor}
+                            className="inline-block size-[6px] rounded-full shrink-0"
+                            style={{ background: dotColor }}
+                          />
+                          <span className="text-[9px] font-semibold uppercase tracking-[0.06em]" style={{ color: dotColor }}>
+                            {rs.charAt(0) + rs.slice(1).toLowerCase()}
                           </span>
-                        )}
+                          <span className="text-[9px] font-semibold uppercase tracking-[0.06em]" style={{ color: "var(--fg-muted)" }}>
+                            · {fb.type === "CLIENT_ANSWER_ADDED" ? "Answer" : "Comment"}
+                          </span>
+                          {fb.feedbackAuthor && (
+                            <span className="text-[9px]" style={{ color: "var(--fg-disabled)" }}>
+                              · {fb.feedbackAuthor}
+                            </span>
+                          )}
+                        </div>
+                        <span className="line-clamp-2">{fb.feedbackBody ?? fb.summary}</span>
                       </div>
-                      {fb.feedbackBody ?? fb.summary}
-                    </div>
-                  ))}
+                    );
+                  })}
+                  {feedbackItems.length > 5 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (snap.id) onOpenFeedbackTab?.(snap.id);
+                      }}
+                      className="text-[10px] font-medium text-left transition-colors duration-[100ms] cursor-pointer hover:opacity-80 focus-visible:outline-none"
+                      style={{ color: "var(--accent)" }}
+                    >
+                      View all {feedbackItems.length} feedback items →
+                    </button>
+                  )}
+                  {feedbackItems.length <= 5 && snap.id && onOpenFeedbackTab && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenFeedbackTab(snap.id!);
+                      }}
+                      className="text-[10px] font-medium text-left transition-colors duration-[100ms] cursor-pointer hover:opacity-80 focus-visible:outline-none"
+                      style={{ color: "var(--accent)" }}
+                    >
+                      Open feedback tab →
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -1114,6 +1207,7 @@ function RevisionsTab({
 export function RightPane({
   activeTab,
   onTabChange,
+  sessionId,
   sources,
   sourcesLoading,
   sourcesError,
@@ -1131,6 +1225,7 @@ export function RightPane({
   onCompareSnapshots,
   newFeedbackCount = 0,
   onClearFeedbackBadge,
+  onOpenFeedbackTab,
 }: RightPaneProps) {
   return (
     <aside
@@ -1232,7 +1327,7 @@ export function RightPane({
                   className="size-[6px] rounded-full shrink-0 animate-pulse"
                   style={{ background: "var(--success)" }}
                 />
-                {"Client confirmed brief — revision in progress"}
+                {"New client feedback — review pending"}
               </button>
             )}
             <RevisionsTab
@@ -1241,6 +1336,8 @@ export function RightPane({
               viewingSnapshotId={viewingSnapshotId}
               onViewSnapshot={onViewSnapshot}
               onCompareSnapshots={onCompareSnapshots}
+              sessionId={sessionId}
+              onOpenFeedbackTab={onOpenFeedbackTab}
             />
           </>
         )}

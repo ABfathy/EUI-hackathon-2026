@@ -7,6 +7,7 @@ import {
 import {
   loadProcessableFileSources,
   PDF_TEXT_PARSER_VERSION,
+  processSessionFileSources,
 } from "@/server/services/source-processing";
 
 const SOURCE_PROCESSING_POLL_INTERVAL_MS = 1_000;
@@ -60,6 +61,30 @@ function asMetadataObject(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+function logBriefGeneration(
+  level: "info" | "warn" | "error",
+  message: string,
+  details: Record<string, unknown>,
+) {
+  const payload = {
+    scope: "brief-generation",
+    message,
+    ...details,
+  };
+
+  if (level === "error") {
+    console.error(payload);
+    return;
+  }
+
+  if (level === "warn") {
+    console.warn(payload);
+    return;
+  }
+
+  console.info(payload);
+}
+
 function fileSourceReadyForPrompt(asset: {
   sourceType: string;
   status: string;
@@ -98,23 +123,49 @@ export async function processSessionFileSourcesWithInngest({
   const sources = await loadProcessableFileSources(sessionId);
   if (sources.length === 0) return [];
 
-  await Promise.all(
-    sources.map((source) =>
-      inngest.send({
-        name:
-          source.sourceType === "PDF"
-            ? INNGEST_EVENTS.PDF_SOURCE_PROCESSING_REQUESTED
-            : INNGEST_EVENTS.AUDIO_SOURCE_PROCESSING_REQUESTED,
-        data: {
-          assetId: source.id,
-          sessionId,
-          requestedBy,
-          requestedAt,
-          jobId,
-        },
-      }),
-    ),
-  );
+  try {
+    await Promise.all(
+      sources.map((source) =>
+        inngest.send({
+          name:
+            source.sourceType === "PDF"
+              ? INNGEST_EVENTS.PDF_SOURCE_PROCESSING_REQUESTED
+              : INNGEST_EVENTS.AUDIO_SOURCE_PROCESSING_REQUESTED,
+          data: {
+            assetId: source.id,
+            sessionId,
+            requestedBy,
+            requestedAt,
+            jobId,
+          },
+        }),
+      ),
+    );
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : "Failed to dispatch source processing jobs.";
+
+    logBriefGeneration(
+      "warn",
+      "Falling back to local file source processing after Inngest dispatch failed.",
+      {
+        sessionId,
+        jobId,
+        requestedAt,
+        sourceCount: sources.length,
+        errorMessage,
+      },
+    );
+
+    await processSessionFileSources({
+      sessionId,
+      requestedBy,
+    });
+
+    return sources;
+  }
 
   const pendingIds = new Set(sources.map((source) => source.id));
   const deadline = Date.now() + SOURCE_PROCESSING_TIMEOUT_MS;

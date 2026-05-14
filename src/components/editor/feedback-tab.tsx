@@ -118,6 +118,7 @@ export function FeedbackTab({ sessionId, snapshotId, onRegenerateStarted }: Feed
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState(false);
+  const [regenError, setRegenError] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
 
   const fetchFeedback = useCallback(async () => {
@@ -203,15 +204,22 @@ export function FeedbackTab({ sessionId, snapshotId, onRegenerateStarted }: Feed
 
   const handleRegenerate = useCallback(async () => {
     setRegenerating(true);
+    setRegenError(null);
     try {
       const res = await fetch(`/api/sessions/${sessionId}/regenerate-from-feedback`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ snapshotId }),
       });
-      if (!res.ok) throw new Error("Regeneration failed");
+      const data = await res.json() as { ok?: boolean; message?: string };
+      if (!res.ok) {
+        setRegenError(data.message ?? "Regeneration failed. Please try again.");
+        return;
+      }
       onRegenerateStarted();
     } catch {
+      setRegenError("Network error. Please try again.");
+    } finally {
       setRegenerating(false);
     }
   }, [sessionId, snapshotId, onRegenerateStarted]);
@@ -405,21 +413,37 @@ export function FeedbackTab({ sessionId, snapshotId, onRegenerateStarted }: Feed
 
       {/* Footer */}
       <div
-        className="px-4 py-3 border-t shrink-0"
+        className="px-4 py-3 border-t shrink-0 flex flex-col gap-2"
         style={{ borderColor: "var(--border)" }}
       >
-        <Button
-          variant="default"
-          size="sm"
-          className="w-full"
-          onClick={() => void handleRegenerate()}
-          disabled={regenerating || !hasAccepted}
-          aria-busy={regenerating}
-        >
-          {regenerating ? "Starting regeneration…" : "Save & Regenerate"}
-        </Button>
-        {!hasAccepted && (
-          <p className="text-center text-[10px] mt-1.5" style={{ color: "var(--fg-muted)" }}>
+        {regenError && (
+          <p className="text-[11px] leading-snug px-1" style={{ color: "var(--danger)" }}>
+            {regenError}
+          </p>
+        )}
+        <div className="flex gap-2">
+          <Button
+            variant="default"
+            size="sm"
+            className="flex-1"
+            onClick={() => void handleRegenerate()}
+            disabled={regenerating || !hasAccepted}
+            aria-busy={regenerating}
+          >
+            {regenerating ? "Regenerating…" : "Save & Regenerate"}
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => void fetchFeedback()}
+            disabled={loading || regenerating}
+            title="Reload feedback (pick up new client submissions)"
+          >
+            <Icons.Refresh size={13} />
+          </Button>
+        </div>
+        {!hasAccepted && !regenError && (
+          <p className="text-center text-[10px]" style={{ color: "var(--fg-muted)" }}>
             Accept at least one item to regenerate
           </p>
         )}

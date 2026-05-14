@@ -573,11 +573,17 @@ export function EditorShell({
         for (const id of feedbackIds) seenEventIdsRef.current.add(id);
       } else if (newFeedback.length > 0) {
         for (const id of newFeedback) seenEventIdsRef.current.add(id);
-        // Find latest confirmed snapshot to open feedback tab for
-        const latestConfirmed = [...allRevisions]
+        // Find the snapshot the new feedback belongs to
+        const latestFeedback = [...allRevisions]
           .reverse()
-          .find((r) => r.type === "BRIEF_CONFIRMED" && r.snapshotId);
-        setPendingFeedbackSnapshotId(latestConfirmed?.snapshotId ?? null);
+          .find(
+            (r) =>
+              (r.type === "BRIEF_CONFIRMED" ||
+                r.type === "CLIENT_ANSWER_ADDED" ||
+                r.type === "CLIENT_COMMENT_ADDED") &&
+              r.snapshotId,
+          );
+        setPendingFeedbackSnapshotId(latestFeedback?.snapshotId ?? null);
         setHasPendingFeedback(true);
         setNewFeedbackCount((prev) => prev + newFeedback.length);
       }

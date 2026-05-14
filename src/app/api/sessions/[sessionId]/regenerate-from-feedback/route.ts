@@ -6,7 +6,7 @@ import {
   isInternalAuthorizationError,
   requireInternalAuth,
 } from "@/server/auth/internal";
-import { runBriefRevision } from "@/server/services/brief-revision";
+import { BriefPipelineError, runBriefRevision } from "@/server/services/brief-revision";
 
 type RouteContext = { params: Promise<{ sessionId: string }> };
 
@@ -87,16 +87,14 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
     const userMessage = await buildAcceptedFeedbackMessage(parsed.data.snapshotId);
 
-    void runBriefRevision({
+    const newSnapshot = await runBriefRevision({
       sessionId,
       snapshotId: parsed.data.snapshotId,
       userMessage,
       requestedBy: "editor:feedback-review",
-    }).catch((err) => {
-      console.error({ scope: "api.regenerate-from-feedback", error: err });
     });
 
-    return NextResponse.json({ jobStarted: true });
+    return NextResponse.json({ ok: true, snapshotId: newSnapshot.snapshotId });
   } catch (error) {
     if (isInternalAuthorizationError(error)) {
       return NextResponse.json(
@@ -104,7 +102,19 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
         { status: error.status },
       );
     }
+    if (error instanceof BriefPipelineError) {
+      const isRateLimit = error.message.includes("429") || error.message.includes("RESOURCE_EXHAUSTED");
+      return NextResponse.json(
+        {
+          error: "REGEN_FAILED",
+          message: isRateLimit
+            ? "AI service is rate-limited. Wait a minute and try again."
+            : `Regeneration failed: ${error.message.slice(0, 200)}`,
+        },
+        { status: 503 },
+      );
+    }
     console.error({ scope: "api.sessions.regenerate-from-feedback.post", error });
-    return NextResponse.json({ error: "REGEN_FAILED" }, { status: 500 });
+    return NextResponse.json({ error: "REGEN_FAILED", message: "Regeneration failed. Please try again." }, { status: 500 });
   }
 }

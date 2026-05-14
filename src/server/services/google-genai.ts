@@ -566,7 +566,7 @@ export function extractJson(raw: string) {
   }
 }
 
-function getStructuredResponseMetadata(response: GenerateContentResponse) {
+export function getStructuredResponseMetadata(response: GenerateContentResponse) {
   const candidate = response.candidates?.[0];
 
   return {
@@ -577,6 +577,27 @@ function getStructuredResponseMetadata(response: GenerateContentResponse) {
     totalTokenCount: response.usageMetadata?.totalTokenCount ?? null,
     candidateTokenCount: response.usageMetadata?.candidatesTokenCount ?? null,
   };
+}
+
+export function assertStructuredResponseCompleted(
+  response: GenerateContentResponse,
+) {
+  const metadata = getStructuredResponseMetadata(response);
+
+  if (
+    metadata.finishReason &&
+    metadata.finishReason !== FinishReason.STOP &&
+    metadata.finishReason !== FinishReason.FINISH_REASON_UNSPECIFIED
+  ) {
+    const detail = metadata.finishMessage
+      ? ` ${metadata.finishMessage}`
+      : "";
+    throw new SyntaxError(
+      `Structured output ended with finish reason ${metadata.finishReason}.${detail}`.trim(),
+    );
+  }
+
+  return metadata;
 }
 
 export function parseStructuredResponse<T>(
@@ -595,18 +616,7 @@ export function parseStructuredResponse<T>(
     );
   }
 
-  if (
-    metadata.finishReason &&
-    metadata.finishReason !== FinishReason.STOP &&
-    metadata.finishReason !== FinishReason.FINISH_REASON_UNSPECIFIED
-  ) {
-    const detail = metadata.finishMessage
-      ? ` ${metadata.finishMessage}`
-      : "";
-    throw new SyntaxError(
-      `Structured output ended with finish reason ${metadata.finishReason}.${detail}`.trim(),
-    );
-  }
+  assertStructuredResponseCompleted(response);
 
   return {
     rawText,
@@ -725,9 +735,15 @@ export async function* generateBriefStreamFromBundle(
     throw error;
   }
 
+  let lastChunk: GenerateContentResponse | null = null;
   for await (const chunk of stream) {
+    lastChunk = chunk;
     const text = chunk.text ?? "";
     if (text) yield text;
+  }
+
+  if (lastChunk) {
+    assertStructuredResponseCompleted(lastChunk);
   }
 }
 
@@ -770,9 +786,15 @@ export async function* reviseBriefStreamFromBundle(
     throw error;
   }
 
+  let lastChunk: GenerateContentResponse | null = null;
   for await (const chunk of stream) {
+    lastChunk = chunk;
     const text = chunk.text ?? "";
     if (text) yield text;
+  }
+
+  if (lastChunk) {
+    assertStructuredResponseCompleted(lastChunk);
   }
 }
 
@@ -864,7 +886,7 @@ export async function transcribeAudioToEnglish(input: {
       config: {
         systemInstruction: AUDIO_TRANSCRIPTION_SYSTEM_PROMPT,
         temperature: 0,
-        maxOutputTokens: 8192,
+        maxOutputTokens: STRUCTURED_OUTPUT_MAX_TOKENS,
         responseMimeType: "application/json",
         responseJsonSchema: audioTranscriptionJsonSchema,
       },
@@ -1054,8 +1076,14 @@ export async function* generateFinalizedDocumentStreamFromBriefs(
     throw error;
   }
 
+  let lastChunk: GenerateContentResponse | null = null;
   for await (const chunk of stream) {
+    lastChunk = chunk;
     const text = chunk.text ?? "";
     if (text) yield text;
+  }
+
+  if (lastChunk) {
+    assertStructuredResponseCompleted(lastChunk);
   }
 }

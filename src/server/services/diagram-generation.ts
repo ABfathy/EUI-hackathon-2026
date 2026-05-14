@@ -1,12 +1,17 @@
-import { FinishReason, Type, type GenerateContentResponse } from "@google/genai";
+import {
+  FinishReason,
+  type GenerateContentResponse,
+  Type,
+} from "@google/genai";
 import { z } from "zod";
 
+import { normalizeMermaidCode } from "@/lib/mermaid";
 import { prisma } from "@/lib/prisma";
 
 import { type DiagramType } from "../../../generated/prisma/client";
 import {
-  getStructuredResponseMetadata,
   getClient,
+  getStructuredResponseMetadata,
   MODEL,
   parseStructuredResponse,
   STRUCTURED_OUTPUT_MAX_TOKENS,
@@ -45,6 +50,7 @@ Rules:
 - Use rectangular nodes for steps: A[Label]
 - Use diamond nodes for decisions: B{Question?}
 - Use rounded nodes for start/end: C([Start])
+- If any node or subgraph label contains parentheses or other special characters, wrap the label text in double quotes inside the shape, for example: A["SBC (Raspberry Pi)"]
 - Group 3+ related nodes with subgraph blocks
 - Show the happy path and 1–2 key branches (error state, retry, success redirect)
 - Maximum 20 nodes`,
@@ -55,6 +61,8 @@ Diagram type: SEQUENCE DIAGRAM
 Syntax: Start with "sequenceDiagram"
 Rules:
 - Declare all actors with "participant" at the top
+- Use short participant IDs with aliases for display names when needed, for example: participant FE as Frontend
+- If a message or display label includes the standalone word "end", wrap that text in quotes or brackets to avoid Mermaid parser issues
 - Use ->> for requests, -->> for responses
 - Use "activate/deactivate" around long-running operations
 - Use "loop" for retry/polling, "alt/else" for conditional branches
@@ -69,6 +77,7 @@ Rules:
 - Rectangular nodes for services/components: A[Service Name]
 - Cylindrical nodes for databases: DB[(Database)]
 - Rounded nodes for external systems: EXT([External API])
+- If any node or subgraph label contains parentheses or other special characters, wrap the label text in double quotes inside the shape
 - Group by layer using subgraphs: Frontend, Backend, Data, External
 - Label edges with the protocol or data type: A -->|REST| B
 - Infer plausible components (auth service, CDN, cache) if clearly implied
@@ -80,6 +89,7 @@ Diagram type: ACTIVITY / STATE DIAGRAM
 Syntax: Start with "stateDiagram-v2"
 Rules:
 - Use [*] for start and end states
+- When a state needs spaces or punctuation in its display name, define a short identifier first and map it with alias syntax, for example: DraftReview: Draft Review
 - Label each transition with the triggering event or action
 - Use composite states ("state StateName { ... }") to group related states
 - Use fork/join ("state fork_state <<fork>>") for parallel flows when relevant
@@ -92,7 +102,7 @@ Diagram type: USER JOURNEY
 Syntax: Start with "journey"
 Rules:
 - Add "title <journey name>" on line 2
-- Group steps into sections by product phase: "section SectionName:"
+- Group steps into sections by product phase using Mermaid's exact syntax: "section SectionName" with no trailing colon
 - Each step: "  Task description: score: ActorName"
   - Score 1–5 (1 = very frustrated, 5 = delighted) — infer from context
   - Actor names must match roles in the requirements (e.g., User, Admin, Client)
@@ -185,48 +195,87 @@ function serializeSnapshotForDiagram(snapshot: {
 function stripMarkdownFences(code: string) {
   const trimmed = code.trim();
   const fenced = trimmed.match(/^```(?:mermaid)?\s*([\s\S]*?)\s*```$/i);
-  return fenced?.[1] ? fenced[1].trim() : trimmed;
+  return normalizeMermaidCode(fenced?.[1] ? fenced[1].trim() : trimmed);
 }
 
-async function validateMermaidCode(code: string) {
-  const mermaid = (await import("mermaid")).default;
-  mermaid.initialize({
-    startOnLoad: false,
-    suppressErrorRendering: true,
-  });
+function getMeaningfulLines(code: string) {
+  return code
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("%%"));
+}
 
-  try {
-    const result = await mermaid.parse(code);
-    const diagramType = result.diagramType;
+function inferMermaidDiagramType(code: string) {
+  const firstLine = getMeaningfulLines(code)[0]?.toLowerCase() ?? "";
 
-    if (typeof document === "undefined") {
-      return { ok: true as const, diagramType };
-    }
+  if (firstLine.startsWith("flowchart ")) return "flowchart-v2";
+  if (firstLine.startsWith("graph ")) return "graph";
+  if (firstLine === "sequencediagram") return "sequence";
+  if (firstLine === "statediagram-v2") return "stateDiagram";
+  if (firstLine === "journey") return "journey";
+  if (firstLine.startsWith("architecture")) return "architecture";
 
-    try {
-      await mermaid.render(
-        `mermaid-validate-${Math.random().toString(36).slice(2)}`,
-        code,
-      );
-      return { ok: true as const, diagramType };
-    } catch (error) {
-      return {
-        ok: false as const,
-        phase: "render" as const,
-        message:
-          error instanceof Error
-            ? error.message
-            : "Unknown Mermaid render error.",
-      };
-    }
-  } catch (error) {
+  return undefined;
+}
+
+function validateMermaidCode(code: string) {
+  const lines = getMeaningfulLines(code);
+  const diagramType = inferMermaidDiagramType(code);
+
+  if (lines.length < 2) {
     return {
       ok: false as const,
       phase: "parse" as const,
-      message:
-        error instanceof Error ? error.message : "Unknown Mermaid parse error.",
+      message: "Mermaid output must contain a diagram declaration and body.",
     };
   }
+
+  if (!diagramType) {
+    return {
+      ok: false as const,
+      phase: "parse" as const,
+      message: "Mermaid output must start with a supported diagram declaration.",
+    };
+  }
+
+  const body = lines.slice(1).join("\n");
+
+  if (
+    (diagramType === "flowchart-v2" || diagramType === "graph") &&
+    !/(-->|---|\|.+\|)/.test(body)
+  ) {
+    return {
+      ok: false as const,
+      phase: "parse" as const,
+      message: "Flowcharts must contain at least one connection.",
+    };
+  }
+
+  if (diagramType === "sequence" && !/->>|-->>|->|-->/i.test(body)) {
+    return {
+      ok: false as const,
+      phase: "parse" as const,
+      message: "Sequence diagrams must contain at least one message.",
+    };
+  }
+
+  if (diagramType === "stateDiagram" && !/-->|:\s|\[\*\]/.test(body)) {
+    return {
+      ok: false as const,
+      phase: "parse" as const,
+      message: "State diagrams must contain at least one transition or state marker.",
+    };
+  }
+
+  if (diagramType === "journey" && !/^title\s+.+/im.test(body)) {
+    return {
+      ok: false as const,
+      phase: "parse" as const,
+      message: "Journey diagrams must include a title line.",
+    };
+  }
+
+  return { ok: true as const, diagramType };
 }
 
 function matchesRequestedDiagramType(
@@ -362,9 +411,7 @@ async function validateRequestedDiagram(
       `Generated Mermaid code failed ${validation.phase} validation: ${validation.message}`,
       {
         userMessage:
-          validation.phase === "render"
-            ? "The generated Mermaid diagram could not be rendered. Please try again."
-            : "The generated Mermaid diagram was not valid Mermaid syntax. Please try again.",
+          "The generated Mermaid diagram was not valid Mermaid syntax. Please try again.",
         phase: validation.phase,
         repairAttemptCount,
       },

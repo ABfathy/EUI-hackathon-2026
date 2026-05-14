@@ -4,6 +4,7 @@ const rootDir = process.cwd();
 
 const nextConfig: NextConfig = {
   outputFileTracingRoot: rootDir,
+  serverExternalPackages: ["mermaid", "dompurify"],
   turbopack: {
     root: rootDir,
   },

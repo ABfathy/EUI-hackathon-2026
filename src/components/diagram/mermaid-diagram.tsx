@@ -3,6 +3,8 @@
 import { useTheme } from "next-themes";
 import React, { useEffect, useRef, useState } from "react";
 
+import { normalizeMermaidCode } from "@/lib/mermaid";
+
 interface MermaidDiagramProps {
   id: string;
   code: string;
@@ -20,6 +22,7 @@ export function MermaidDiagram({
   const { resolvedTheme } = useTheme();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const normalizedCode = normalizeMermaidCode(code);
 
   useEffect(() => {
     let cancelled = false;
@@ -38,7 +41,10 @@ export function MermaidDiagram({
       });
 
       try {
-        const { svg } = await mermaid.render(`mermaid-render-${id}`, code);
+        const { svg } = await mermaid.render(
+          `mermaid-render-${id}`,
+          normalizedCode,
+        );
         if (!cancelled && containerRef.current) {
           containerRef.current.innerHTML = svg;
           setLoading(false);
@@ -55,7 +61,7 @@ export function MermaidDiagram({
     return () => {
       cancelled = true;
     };
-  }, [id, code, resolvedTheme]);
+  }, [id, normalizedCode, resolvedTheme]);
 
   if (error) {
     return (
@@ -78,7 +84,7 @@ export function MermaidDiagram({
             fontFamily: "var(--font-mono, monospace)",
           }}
         >
-          {code}
+          {normalizedCode}
         </pre>
       </div>
     );

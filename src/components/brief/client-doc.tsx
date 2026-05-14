@@ -1,14 +1,94 @@
 "use client";
 
 import { Check, Send } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   type Requirement,
   RequirementCard,
 } from "@/components/brief/requirement-card";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 import type { BriefCommentSection } from "../../../generated/prisma/client";
+
+function sectionId(section: string) {
+  return section.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+}
+
+function BriefSectionNav({ sections }: { sections: string[] }) {
+  const [activeSection, setActiveSection] = useState<string | null>(
+    sections[0] ?? null,
+  );
+  const observerRef = useRef<IntersectionObserver | null>(null);
+
+  useEffect(() => {
+    if (sections.length === 0) return;
+
+    observerRef.current?.disconnect();
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible.length > 0 && visible[0]) {
+          setActiveSection(visible[0].target.id);
+        }
+      },
+      { rootMargin: "-10% 0px -80% 0px", threshold: 0 },
+    );
+
+    for (const section of sections) {
+      const el = document.getElementById(sectionId(section));
+      if (el) observerRef.current.observe(el);
+    }
+
+    return () => observerRef.current?.disconnect();
+  }, [sections]);
+
+  if (sections.length < 2) return null;
+
+  return (
+    <nav
+      aria-label="Jump to section"
+      className="flex overflow-x-auto no-scrollbar border-b border-border mb-4 sticky top-0 z-10"
+      style={{ background: "var(--surface-1)" }}
+    >
+      {sections.map((section) => {
+        const id = sectionId(section);
+        const isActive = activeSection === id;
+        return (
+          <button
+            key={section}
+            type="button"
+            onClick={() => {
+              const el = document.getElementById(id);
+              if (el) {
+                el.scrollIntoView({ behavior: "smooth", block: "start" });
+                setActiveSection(id);
+              }
+            }}
+            className={cn(
+              "relative flex-none px-3 py-2 text-[11px] font-medium whitespace-nowrap cursor-pointer",
+              "transition-[color] duration-fast ease-out-app",
+              "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-accent",
+              isActive ? "text-fg-1" : "text-fg-4 hover:text-fg-2",
+            )}
+          >
+            {section}
+            {isActive && (
+              <span
+                className="absolute bottom-0 left-0 right-0 h-px"
+                style={{ background: "var(--accent)" }}
+                aria-hidden="true"
+              />
+            )}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
 
 interface ClientDocProps {
   title: string;
@@ -70,7 +150,7 @@ function ClientDoc({
         </div>
 
         {/* Meta row */}
-        <div className="font-mono text-xs text-fg-4 mb-8 flex flex-wrap gap-x-2.5 gap-y-1">
+        <div className="font-mono text-xs text-fg-4 mb-4 flex flex-wrap gap-x-2.5 gap-y-1">
           <span>{meta.project}</span>
           <span className="text-border-focus">·</span>
           <span>{meta.version}</span>
@@ -80,9 +160,12 @@ function ClientDoc({
           <span>{meta.label}</span>
         </div>
 
+        {/* Section navigation */}
+        <BriefSectionNav sections={sections} />
+
         {/* Sections */}
         {sections.map((section) => (
-          <div key={section} className="mb-1.5">
+          <div key={section} id={sectionId(section)} className="mb-1.5 scroll-mt-10">
             <div className="text-[10px] font-medium uppercase tracking-[0.09em] text-fg-4 py-5 pb-2 border-t border-border mt-2">
               {section}
             </div>

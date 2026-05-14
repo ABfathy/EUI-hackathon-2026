@@ -174,56 +174,55 @@ export function CommandPalette({
               >
                 Commands
               </div>
-              {filtered.map((cmd, i) => (
-                <button
-                  key={cmd.label}
-                  type="button"
-                  disabled={cmd.disabled}
-                  onClick={() => {
-                    if (cmd.disabled) return;
-                    cmd.onExecute?.();
-                    onClose();
-                  }}
-                  className="flex items-center gap-2.5 w-full h-[34px] px-3 text-[13px] transition-colors duration-[80ms] text-left"
-                  style={{
-                    color: cmd.disabled
-                      ? "var(--fg-disabled)"
-                      : i === activeIdx
-                        ? "var(--fg-primary)"
-                        : "var(--fg-secondary)",
-                    background:
-                      !cmd.disabled && i === activeIdx
-                        ? "var(--accent-subtle)"
-                        : "transparent",
-                    cursor: cmd.disabled ? "not-allowed" : "pointer",
-                    opacity: cmd.disabled ? 0.5 : 1,
-                  }}
-                  onMouseEnter={() => {
-                    if (!cmd.disabled) setActiveIdx(i);
-                  }}
-                >
-                  <span
-                    style={{
-                      color: cmd.disabled
-                        ? "var(--fg-disabled)"
-                        : i === activeIdx
-                          ? "var(--accent)"
-                          : "var(--fg-muted)",
+              {filtered.map((cmd, i) => {
+                const isActive = !cmd.disabled && i === activeIdx;
+                return (
+                  <button
+                    key={cmd.label}
+                    type="button"
+                    disabled={cmd.disabled}
+                    onClick={() => {
+                      if (cmd.disabled) return;
+                      cmd.onExecute?.();
+                      onClose();
+                    }}
+                    className={[
+                      "flex items-center gap-2.5 w-full h-[34px] px-3 text-[13px] text-left",
+                      "transition-[background-color,color] duration-[80ms]",
+                      cmd.disabled
+                        ? "opacity-50 cursor-not-allowed text-[var(--fg-disabled)]"
+                        : isActive
+                          ? "bg-[var(--accent-subtle)] text-[var(--fg-primary)] cursor-pointer"
+                          : "text-[var(--fg-secondary)] hover:bg-[var(--surface-3)] cursor-pointer",
+                    ].join(" ")}
+                    onMouseEnter={() => {
+                      if (!cmd.disabled) setActiveIdx(i);
                     }}
                   >
-                    {cmd.icon}
-                  </span>
-                  <span>{cmd.label}</span>
-                  {cmd.disabled && cmd.disabledLabel && (
                     <span
-                      className="ml-auto text-[10px]"
-                      style={{ color: "var(--fg-disabled)" }}
+                      style={{
+                        color: cmd.disabled
+                          ? "var(--fg-disabled)"
+                          : isActive
+                            ? "var(--accent)"
+                            : "var(--fg-muted)",
+                        transition: "color 80ms",
+                      }}
                     >
-                      {cmd.disabledLabel}
+                      {cmd.icon}
                     </span>
-                  )}
-                </button>
-              ))}
+                    <span>{cmd.label}</span>
+                    {cmd.disabled && cmd.disabledLabel && (
+                      <span
+                        className="ml-auto text-[10px]"
+                        style={{ color: "var(--fg-disabled)" }}
+                      >
+                        {cmd.disabledLabel}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </>
           )}
         </div>

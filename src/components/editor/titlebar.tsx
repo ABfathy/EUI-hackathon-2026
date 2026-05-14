@@ -58,9 +58,8 @@ export function TitleBar({
       <button
         type="button"
         onClick={onOpenPalette}
-        className="flex items-center gap-2.5 h-[26px] px-3 rounded-[6px] border transition-colors duration-[120ms] hover:bg-[var(--surface-3)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer shrink-0"
+        className="flex items-center gap-2.5 h-[26px] px-3 rounded-[6px] border bg-[var(--surface-2)] transition-[color,background-color,transform,scale] duration-[120ms] hover:bg-[var(--surface-3)] active:scale-[0.96] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer shrink-0"
         style={{
-          background: "var(--surface-2)",
           borderColor: "var(--border-strong)",
           color: "var(--fg-muted)",
           minWidth: 160,

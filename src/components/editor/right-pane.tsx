@@ -576,11 +576,10 @@ function SourcesTab({
             type="button"
             onClick={() => setPasteOpen(true)}
             disabled={!onSubmitText}
-            className="flex items-center gap-1.5 h-[26px] px-2 rounded-[5px] text-[11px] border transition-colors duration-[120ms] hover:bg-[var(--surface-3)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex-1 overflow-hidden"
+            className="flex items-center gap-1.5 h-[26px] px-2 rounded-[5px] text-[11px] border bg-transparent transition-[color,background-color,border-color,transform,scale] duration-[120ms] hover:bg-[var(--surface-3)] hover:border-[var(--border-strong)] hover:text-[var(--fg-secondary)] active:scale-[0.96] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex-1 overflow-hidden"
             style={{
               color: "var(--fg-tertiary)",
               borderColor: "var(--border)",
-              background: "transparent",
             }}
           >
             <Icons.Plus size={12} aria-hidden="true" className="shrink-0" />
@@ -590,11 +589,10 @@ function SourcesTab({
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={!onUploadFiles}
-            className="flex items-center gap-1.5 h-[26px] px-2 rounded-[5px] text-[11px] border transition-colors duration-[120ms] hover:bg-[var(--surface-3)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex-1 overflow-hidden"
+            className="flex items-center gap-1.5 h-[26px] px-2 rounded-[5px] text-[11px] border bg-transparent transition-[color,background-color,border-color,transform,scale] duration-[120ms] hover:bg-[var(--surface-3)] hover:border-[var(--border-strong)] hover:text-[var(--fg-secondary)] active:scale-[0.96] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex-1 overflow-hidden"
             style={{
               color: "var(--fg-tertiary)",
               borderColor: "var(--border)",
-              background: "transparent",
             }}
           >
             <Icons.FileText size={12} aria-hidden="true" className="shrink-0" />
@@ -604,11 +602,10 @@ function SourcesTab({
             type="button"
             onClick={() => folderInputRef.current?.click()}
             disabled={!onUploadFiles}
-            className="flex items-center gap-1.5 h-[26px] px-2 rounded-[5px] text-[11px] border transition-colors duration-[120ms] hover:bg-[var(--surface-3)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex-1 overflow-hidden"
+            className="flex items-center gap-1.5 h-[26px] px-2 rounded-[5px] text-[11px] border bg-transparent transition-[color,background-color,border-color,transform,scale] duration-[120ms] hover:bg-[var(--surface-3)] hover:border-[var(--border-strong)] hover:text-[var(--fg-secondary)] active:scale-[0.96] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex-1 overflow-hidden"
             style={{
               color: "var(--fg-tertiary)",
               borderColor: "var(--border)",
-              background: "transparent",
             }}
           >
             <Icons.Folder size={12} aria-hidden="true" className="shrink-0" />
@@ -1303,13 +1300,14 @@ export function RightPane({
               onTabChange(tab.id);
               if (tab.id === "revisions") onClearFeedbackBadge?.();
             }}
-            className="relative h-full px-3 text-[12px] font-medium transition-colors duration-[120ms] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--accent-ring)] cursor-pointer"
-            style={{
-              color:
-                activeTab === tab.id
-                  ? "var(--fg-primary)"
-                  : "var(--fg-tertiary)",
-            }}
+            className={[
+              "relative h-full px-3 text-[12px] font-medium cursor-pointer",
+              "transition-[color] duration-[120ms]",
+              "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--accent-ring)]",
+              activeTab === tab.id
+                ? "text-[var(--fg-primary)]"
+                : "text-[var(--fg-tertiary)] hover:text-[var(--fg-secondary)]",
+            ].join(" ")}
           >
             <span className="flex items-center gap-1.5">
               {tab.label}

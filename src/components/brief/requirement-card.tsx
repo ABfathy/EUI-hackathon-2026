@@ -134,7 +134,7 @@ function RequirementCard({
               "flex items-center gap-[5px] py-[3px] px-2 rounded-sm",
               "bg-transparent border border-border text-[11px] text-fg-4 cursor-pointer",
               "sm:opacity-0 sm:group-hover:opacity-100",
-              "transition-all duration-fast ease-out-app",
+              "transition-[color,background-color,border-color,opacity,transform,scale] duration-fast ease-out-app active:scale-[0.96]",
               "hover:border-border-focus hover:text-fg-1",
               "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent",
             )}

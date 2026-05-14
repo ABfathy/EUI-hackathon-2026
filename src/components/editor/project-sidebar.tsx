@@ -89,9 +89,8 @@ export function ProjectSidebar({
         <button
           type="button"
           onClick={onOpenPalette}
-          className="flex items-center gap-2 mx-2 mt-2 mb-1.5 h-[26px] px-2 rounded-[5px] border transition-colors duration-[120ms] hover:bg-[var(--surface-2)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer shrink-0"
+          className="flex items-center gap-2 mx-2 mt-2 mb-1.5 h-[26px] px-2 rounded-[5px] border bg-[var(--surface-2)] transition-[color,background-color,border-color,transform,scale] duration-[120ms] hover:bg-[var(--surface-3)] hover:border-[var(--border-strong)] active:scale-[0.96] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer shrink-0"
           style={{
-            background: "var(--surface-2)",
             borderColor: "var(--border)",
             color: "var(--fg-muted)",
           }}
@@ -140,7 +139,7 @@ export function ProjectSidebar({
             <button
               type="button"
               onClick={startCreate}
-              className="flex items-center gap-1.5 flex-1 min-w-0 h-[26px] px-2 rounded-[5px] text-[11px] transition-colors duration-[120ms] hover:bg-[var(--surface-2)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
+              className="flex items-center gap-1.5 flex-1 min-w-0 h-[26px] px-2 rounded-[5px] text-[11px] transition-[color,background-color,transform,scale] duration-[120ms] hover:bg-[var(--surface-3)] hover:text-[var(--fg-secondary)] active:scale-[0.96] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
               style={{ color: "var(--fg-tertiary)" }}
             >
               <Icons.Plus size={13} aria-hidden="true" className="shrink-0" />
@@ -300,8 +299,8 @@ function CreateFormFields({ onCancel }: { onCancel: () => void }) {
         maxLength={120}
         disabled={pending}
         autoFocus
-        className="flex-1 min-w-0 h-[24px] px-1.5 rounded-[4px] border bg-transparent text-[11px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] disabled:opacity-50"
-        style={{ color: "var(--fg-primary)", borderColor: "var(--border)" }}
+        className="flex-1 min-w-0 h-[24px] px-1.5 rounded-[4px] border border-[var(--border)] bg-transparent text-[11px] transition-[border-color] duration-[120ms] hover:border-[var(--border-strong)] focus-visible:outline-none focus-visible:border-[var(--border-focus)] focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] disabled:opacity-50"
+        style={{ color: "var(--fg-primary)" }}
         onKeyDown={(e) => {
           if (e.key === "Escape" && !pending) onCancel();
         }}
@@ -311,7 +310,7 @@ function CreateFormFields({ onCancel }: { onCancel: () => void }) {
       <button
         type="submit"
         disabled={pending}
-        className="inline-flex items-center justify-center h-[24px] px-1.5 rounded-[4px] text-[10px] font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer disabled:cursor-not-allowed shrink-0"
+        className="inline-flex items-center justify-center h-[24px] px-1.5 rounded-[4px] text-[10px] font-medium transition-[filter,transform,scale] duration-[120ms] hover:brightness-110 active:scale-[0.96] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer disabled:cursor-not-allowed shrink-0"
         style={{ background: "var(--accent)", color: "var(--accent-fg)" }}
       >
         {pending ? (

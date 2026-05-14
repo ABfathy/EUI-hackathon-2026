@@ -929,11 +929,8 @@ function ChatBar({
 
       {/* Input card */}
       <div
-        className="flex flex-col rounded-[8px] border overflow-hidden"
-        style={{
-          background: "var(--surface-1)",
-          borderColor: "var(--border-strong)",
-        }}
+        className="flex flex-col rounded-[8px] border border-[var(--border-strong)] overflow-hidden transition-[border-color] duration-[120ms] hover:border-[var(--border-focus)] focus-within:border-[var(--accent)]"
+        style={{ background: "var(--surface-1)" }}
       >
         <label htmlFor="doc-chat-input" className="sr-only">
           Chat input
@@ -1004,7 +1001,15 @@ function ChatBar({
               </span>
             )}
             <IconButton
-              label="Send message"
+              label={
+                !onSendMessage
+                  ? "Generate a brief first to start chatting"
+                  : !canChat && !selectedDiagramType
+                    ? "Select a tool or generate a brief to chat"
+                    : sending || revising
+                      ? "Sending…"
+                      : "Send message"
+              }
               onClick={() => void handleSend()}
               disabled={sendDisabled}
             >
@@ -1149,6 +1154,7 @@ export function DocView({
   const filterInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const shouldStickToBottomRef = useRef(true);
+  const isProgrammaticScrollRef = useRef(false);
   // Singleton edit guard: at most one DocLine can be in edit mode at a time.
   // Storing the reqId (instead of a boolean) lets us derive isEditing per-row
   // without any per-row state mutation.
@@ -1171,7 +1177,11 @@ export function DocView({
     if (!scroller || !hasStreamingContent) return;
     if (!shouldStickToBottomRef.current) return;
 
+    isProgrammaticScrollRef.current = true;
     scroller.scrollTop = scroller.scrollHeight;
+    requestAnimationFrame(() => {
+      isProgrammaticScrollRef.current = false;
+    });
   }, [hasStreamingContent, streamingLines]);
 
   function closeFilter() {
@@ -1304,9 +1314,9 @@ export function DocView({
             <button
               type="button"
               onClick={() => setFilterOpen(true)}
-              className="inline-flex items-center gap-1 h-[24px] px-2.5 rounded-[6px] text-[11px] transition-colors duration-[120ms] hover:bg-[var(--surface-3)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer whitespace-nowrap"
+              className="inline-flex items-center gap-1 h-[24px] px-2.5 rounded-[6px] text-[11px] transition-[color,background-color,transform,scale] duration-[120ms] hover:bg-[var(--surface-3)] active:scale-[0.96] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer whitespace-nowrap"
               style={{
-                color: filterQuery ? "var(--accent)" : "var(--fg-tertiary)",
+                color: filterQuery ? "var(--accent)" : "var(--fg-secondary)",
               }}
             >
               <Icons.Filter size={11} aria-hidden="true" />
@@ -1317,8 +1327,8 @@ export function DocView({
             <button
               type="button"
               onClick={onShareBrief}
-              className="inline-flex items-center gap-1 h-[24px] px-2.5 rounded-[6px] text-[11px] transition-colors duration-[120ms] hover:bg-[var(--surface-3)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer whitespace-nowrap"
-              style={{ color: "var(--fg-muted)" }}
+              className="inline-flex items-center gap-1 h-[24px] px-2.5 rounded-[6px] text-[11px] transition-[color,background-color,transform,scale] duration-[120ms] hover:bg-[var(--surface-3)] active:scale-[0.96] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer whitespace-nowrap"
+              style={{ color: "var(--fg-secondary)" }}
             >
               <Icons.Share size={11} aria-hidden="true" />
               <span>Share</span>
@@ -1335,7 +1345,7 @@ export function DocView({
                   : undefined
             }
             onClick={onCreateFinalizedDocument}
-            className="inline-flex items-center justify-center gap-1.5 h-[26px] px-2.5 rounded-[7px] text-[11px] font-medium transition-colors duration-[120ms] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap shrink-0"
+            className="inline-flex items-center justify-center gap-1.5 h-[26px] px-2.5 rounded-[7px] text-[11px] font-medium transition-[color,background-color,filter,transform,scale] duration-[120ms] hover:brightness-[1.08] active:scale-[0.96] disabled:hover:brightness-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap shrink-0"
             style={
               !finalizedDisabled
                 ? {
@@ -1366,12 +1376,16 @@ export function DocView({
             title={
               generating
                 ? "Generation in progress"
-                : generateDisabled
-                  ? "Add sources first"
-                  : undefined
+                : appState === "no-session"
+                  ? "Create a project first"
+                  : appState === "no-sources"
+                    ? "Add at least one source before generating"
+                    : generateDisabled
+                      ? "Cannot generate right now"
+                      : undefined
             }
             onClick={onGenerateBrief}
-            className="inline-flex items-center justify-center gap-1.5 h-[26px] px-2.5 rounded-[7px] text-[11px] font-medium transition-colors duration-[120ms] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap shrink-0"
+            className="inline-flex items-center justify-center gap-1.5 h-[26px] px-2.5 rounded-[7px] text-[11px] font-medium transition-[color,background-color,filter,transform,scale] duration-[120ms] hover:brightness-[1.1] active:scale-[0.96] disabled:hover:brightness-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap shrink-0"
             style={
               canGenerate && !generateDisabled
                 ? {
@@ -1422,20 +1436,14 @@ export function DocView({
             role="tab"
             aria-selected={activeWorkspaceTab === "draft"}
             onClick={() => onSelectWorkspaceTab?.("draft")}
-            className="inline-flex items-center h-[24px] px-2 rounded-[4px] text-[11px] font-medium border transition-colors duration-[120ms] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
-            style={
+            className={[
+              "inline-flex items-center h-[24px] px-2 rounded-[4px] text-[11px] font-medium border",
+              "transition-[color,background-color,border-color] duration-[120ms]",
+              "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer",
               activeWorkspaceTab === "draft"
-                ? {
-                    background: "var(--surface-3)",
-                    borderColor: "var(--border-strong)",
-                    color: "var(--fg-primary)",
-                  }
-                : {
-                    background: "transparent",
-                    borderColor: "transparent",
-                    color: "var(--fg-tertiary)",
-                  }
-            }
+                ? "bg-[var(--surface-3)] border-[var(--border-strong)] text-[var(--fg-primary)]"
+                : "bg-transparent border-transparent text-[var(--fg-tertiary)] hover:bg-[var(--surface-2)] hover:border-[var(--border)] hover:text-[var(--fg-secondary)]",
+            ].join(" ")}
           >
             Draft
           </button>
@@ -1444,20 +1452,14 @@ export function DocView({
             role="tab"
             aria-selected={showingDiagrams}
             onClick={() => onSelectWorkspaceTab?.(DIAGRAMS_TAB_ID)}
-            className="inline-flex items-center gap-1.5 h-[24px] px-2 rounded-[4px] text-[11px] font-medium border transition-colors duration-[120ms] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
-            style={
+            className={[
+              "inline-flex items-center gap-1.5 h-[24px] px-2 rounded-[4px] text-[11px] font-medium border",
+              "transition-[color,background-color,border-color] duration-[120ms]",
+              "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer",
               showingDiagrams
-                ? {
-                    background: "var(--surface-3)",
-                    borderColor: "var(--border-strong)",
-                    color: "var(--fg-primary)",
-                  }
-                : {
-                    background: "transparent",
-                    borderColor: "transparent",
-                    color: "var(--fg-tertiary)",
-                  }
-            }
+                ? "bg-[var(--surface-3)] border-[var(--border-strong)] text-[var(--fg-primary)]"
+                : "bg-transparent border-transparent text-[var(--fg-tertiary)] hover:bg-[var(--surface-2)] hover:border-[var(--border)] hover:text-[var(--fg-secondary)]",
+            ].join(" ")}
           >
             <Icons.Tools size={11} aria-hidden="true" />
             Diagrams
@@ -1480,20 +1482,13 @@ export function DocView({
             return (
               <div
                 key={tab.id}
-                className="group inline-flex items-center h-[24px] max-w-[260px] rounded-[4px] text-[11px] font-medium border transition-colors duration-[120ms]"
-                style={
+                className={[
+                  "group inline-flex items-center h-[24px] max-w-[260px] rounded-[4px] text-[11px] font-medium border",
+                  "transition-[color,background-color,border-color] duration-[120ms]",
                   active
-                    ? {
-                        background: "var(--surface-3)",
-                        borderColor: "var(--border-strong)",
-                        color: "var(--fg-primary)",
-                      }
-                    : {
-                        background: "transparent",
-                        borderColor: "transparent",
-                        color: "var(--fg-tertiary)",
-                      }
-                }
+                    ? "bg-[var(--surface-3)] border-[var(--border-strong)] text-[var(--fg-primary)]"
+                    : "bg-transparent border-transparent text-[var(--fg-tertiary)] hover:bg-[var(--surface-2)] hover:border-[var(--border)] hover:text-[var(--fg-secondary)]",
+                ].join(" ")}
               >
                 <button
                   type="button"
@@ -1523,20 +1518,13 @@ export function DocView({
             return (
               <div
                 key={tab.id}
-                className="group inline-flex items-center h-[24px] max-w-[260px] rounded-[4px] text-[11px] font-medium border transition-colors duration-[120ms]"
-                style={
+                className={[
+                  "group inline-flex items-center h-[24px] max-w-[260px] rounded-[4px] text-[11px] font-medium border",
+                  "transition-[color,background-color,border-color] duration-[120ms]",
                   active
-                    ? {
-                        background: "var(--surface-3)",
-                        borderColor: "var(--border-strong)",
-                        color: "var(--fg-primary)",
-                      }
-                    : {
-                        background: "transparent",
-                        borderColor: "transparent",
-                        color: "var(--fg-tertiary)",
-                      }
-                }
+                    ? "bg-[var(--surface-3)] border-[var(--border-strong)] text-[var(--fg-primary)]"
+                    : "bg-transparent border-transparent text-[var(--fg-tertiary)] hover:bg-[var(--surface-2)] hover:border-[var(--border)] hover:text-[var(--fg-secondary)]",
+                ].join(" ")}
               >
                 <button
                   type="button"
@@ -1608,6 +1596,8 @@ export function DocView({
         onScroll={() => {
           const scroller = scrollRef.current;
           if (!scroller || !hasStreamingContent) return;
+          // Ignore scroll events triggered by our own programmatic scrollTop assignment
+          if (isProgrammaticScrollRef.current) return;
           const distanceFromBottom =
             scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
           shouldStickToBottomRef.current = distanceFromBottom <= 48;

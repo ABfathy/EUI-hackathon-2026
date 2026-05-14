@@ -812,19 +812,19 @@ export function EditorShell({
     shouldPollFeedbackRef.current = false;
   }, [sessionId]);
 
-  // Keep shouldPollFeedbackRef in sync with snapshot SHARED status (no interval restart needed)
+  // Poll whenever there's at least one snapshot (share may have happened, clients may be active)
   useEffect(() => {
-    shouldPollFeedbackRef.current = snapshots.some((s) => s.snapshotStatus === "SHARED");
+    shouldPollFeedbackRef.current = snapshots.some((s) => s.id != null);
   }, [snapshots]);
 
-  // One stable 30s interval per session — only fires loadRevisions when SHARED
+  // Poll every 15s — fires loadRevisions when session has any snapshot
   useEffect(() => {
     if (!sessionId) return;
     feedbackPollRef.current = setInterval(() => {
       if (shouldPollFeedbackRef.current) {
         void loadRevisions(sessionId);
       }
-    }, 30_000);
+    }, 15_000);
     return () => stopFeedbackPoll();
   }, [sessionId, loadRevisions, stopFeedbackPoll]);
 
@@ -1567,6 +1567,7 @@ ${lines.map((l) => {
         <ShareModal
           snapshotId={currentSnapshotId}
           onClose={() => setShareModalOpen(false)}
+          onShareCreated={() => { if (sessionId) void loadRevisions(sessionId); }}
         />
       )}
       {settingsOpen && activeProjectId && (

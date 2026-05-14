@@ -33,9 +33,10 @@ function mapApiError(status: number, fallback?: string): string {
 
 interface PublicBriefViewProps {
   data: PublicBriefViewData;
+  isDemo?: boolean;
 }
 
-export function PublicBriefView({ data }: PublicBriefViewProps) {
+export function PublicBriefView({ data, isDemo = false }: PublicBriefViewProps) {
   const {
     shareToken,
     snapshot,
@@ -89,6 +90,7 @@ export function PublicBriefView({ data }: PublicBriefViewProps) {
     },
     body: string,
   ): Promise<void> => {
+    if (isDemo) return;
     const payload: Record<string, unknown> = {
       section: target.section,
       anchorType: target.claimId
@@ -125,6 +127,7 @@ export function PublicBriefView({ data }: PublicBriefViewProps) {
     questionId: string,
     body: string,
   ): Promise<void> => {
+    if (isDemo) return;
     const res = await fetch(`/api/public/briefs/${shareToken}/answers`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -283,7 +286,7 @@ ${bodyHtml}
   }
 
   const submitConfirmation = async (): Promise<void> => {
-    if (!shareToken || isConfirming || isConfirmed) return;
+    if (isDemo || !shareToken || isConfirming || isConfirmed) return;
 
     setIsConfirming(true);
     setConfirmError(null);

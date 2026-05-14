@@ -172,6 +172,7 @@ export default function DemoWorkspacePage() {
       lines={DEMO_LINES}
       hasSnapshot={true}
       initialSnapshotId="demo-snap-2"
+      isDemo
     />
   );
 }

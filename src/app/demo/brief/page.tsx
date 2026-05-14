@@ -194,5 +194,5 @@ const DEMO_DATA: PublicBriefViewData = {
 };
 
 export default function DemoBriefPage() {
-  return <PublicBriefView data={DEMO_DATA} />;
+  return <PublicBriefView data={DEMO_DATA} isDemo />;
 }

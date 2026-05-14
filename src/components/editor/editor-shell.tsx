@@ -85,6 +85,7 @@ interface EditorShellProps {
   lines?: DocLineData[];
   hasSnapshot?: boolean;
   initialSnapshotId?: string | null;
+  isDemo?: boolean;
 }
 
 interface CacheEntry {
@@ -256,6 +257,7 @@ export function EditorShell({
   lines = [],
   hasSnapshot = false,
   initialSnapshotId = null,
+  isDemo = false,
 }: EditorShellProps) {
   const router = useRouter();
   const [projects, setProjects] = useState<ProjectListItem[]>(initialProjects);
@@ -1668,18 +1670,18 @@ ${lines
           selectedReq={selectedReq}
           onSelectReq={handleSelectReq}
           onAddSources={handleOpenSources}
-          onAttachFiles={sessionId ? handleUploadFiles : undefined}
-          onGenerateBrief={sessionId ? handleGenerateBrief : undefined}
+          onAttachFiles={!isDemo && sessionId ? handleUploadFiles : undefined}
+          onGenerateBrief={!isDemo && sessionId ? handleGenerateBrief : undefined}
           generating={generating}
           hasSnapshot={displayHasSnapshot}
           generationError={generationError}
-          onRetry={sessionId ? handleGenerateBrief : undefined}
+          onRetry={!isDemo && sessionId ? handleGenerateBrief : undefined}
           streamingLines={streamingLines}
           lines={displayLines}
           selectedReqText={selectedReqText}
           onClearSelection={() => setSelectedReq(null)}
           onSendMessage={
-            sessionId && currentSnapshotId ? handleSendOrDiagram : undefined
+            !isDemo && sessionId && currentSnapshotId ? handleSendOrDiagram : undefined
           }
           revising={revising}
           selectedDiagramType={selectedDiagramType}
@@ -1694,11 +1696,11 @@ ${lines
           diagramError={diagramError}
           diagrams={diagrams}
           diagramsLoading={diagramsLoading}
-          onUpdateLine={currentSnapshotId ? handleUpdateLine : undefined}
+          onUpdateLine={!isDemo && currentSnapshotId ? handleUpdateLine : undefined}
           snapshotId={currentSnapshotId}
-          onShareBrief={currentSnapshotId ? handleShareBrief : undefined}
+          onShareBrief={!isDemo && currentSnapshotId ? handleShareBrief : undefined}
           onInsertLineAfter={
-            currentSnapshotId ? handleInsertLineAfter : undefined
+            !isDemo && currentSnapshotId ? handleInsertLineAfter : undefined
           }
           autoFocusReqId={pendingFocusClaimId}
           onAutoFocusConsumed={() => setPendingFocusClaimId(null)}
@@ -1716,7 +1718,7 @@ ${lines
           onCloseComparisonTab={handleCloseComparisonTab}
           onCloseFeedbackTab={handleCloseFeedbackTab}
           sessionId={session?.id}
-          onRequestRegenerate={handleFeedbackRegenerate}
+          onRequestRegenerate={!isDemo ? handleFeedbackRegenerate : undefined}
           onOpenSource={(id) => {
             const s = sources.find((src) => src.id === id);
             if (s) setPreviewItem(s);
@@ -1744,10 +1746,10 @@ ${lines
               sources={sources}
               sourcesLoading={sourcesLoading || isUploading}
               sourcesError={sourcesError}
-              onSubmitText={sessionId ? handleSubmitText : undefined}
-              onDeleteSource={sessionId ? handleDeleteSource : undefined}
-              onRenameSource={sessionId ? handleRenameSource : undefined}
-              onUploadFiles={sessionId ? handleUploadFiles : undefined}
+              onSubmitText={!isDemo && sessionId ? handleSubmitText : undefined}
+              onDeleteSource={!isDemo && sessionId ? handleDeleteSource : undefined}
+              onRenameSource={!isDemo && sessionId ? handleRenameSource : undefined}
+              onUploadFiles={!isDemo && sessionId ? handleUploadFiles : undefined}
               onRetrySourceLoad={refreshSources}
               onPreviewSource={setPreviewItem}
               chatMessages={chatMessages}
@@ -1783,7 +1785,7 @@ ${lines
             setRightOpen(true);
             setRightTab("sources");
           }}
-          onRegenerate={!generating ? handleGenerateBrief : undefined}
+          onRegenerate={!isDemo && !generating ? handleGenerateBrief : undefined}
           onViewRevisions={() => {
             setRightOpen(true);
             setRightTab("revisions");
@@ -1794,7 +1796,7 @@ ${lines
           onOpenSettings={
             activeProjectId ? () => setSettingsOpen(true) : undefined
           }
-          onShare={currentSnapshotId ? handleShareBrief : undefined}
+          onShare={!isDemo && currentSnapshotId ? handleShareBrief : undefined}
         />
       )}
       {shareModalOpen && currentSnapshotId && (

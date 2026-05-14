@@ -41,7 +41,10 @@ export function ShareModal({ snapshotId, onClose, onShareCreated }: ShareModalPr
       .catch(() => {
         if (!cancelled) setState("error");
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snapshotId]);
 
   function handleCopy() {
@@ -55,7 +58,9 @@ export function ShareModal({ snapshotId, onClose, onShareCreated }: ShareModalPr
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: "rgba(0,0,0,0.55)" }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
       role="presentation"
     >
       <div
@@ -74,7 +79,11 @@ export function ShareModal({ snapshotId, onClose, onShareCreated }: ShareModalPr
           className="flex items-center gap-2 px-4 py-3 border-b shrink-0"
           style={{ borderColor: "var(--border)" }}
         >
-          <Icons.Share size={14} aria-hidden="true" style={{ color: "var(--fg-muted)" }} />
+          <Icons.Share
+            size={14}
+            aria-hidden="true"
+            style={{ color: "var(--fg-muted)" }}
+          />
           <span
             className="flex-1 text-[13px] font-medium"
             style={{ color: "var(--fg-primary)" }}
@@ -96,8 +105,15 @@ export function ShareModal({ snapshotId, onClose, onShareCreated }: ShareModalPr
         {/* Body */}
         <div className="flex flex-col gap-3 p-4">
           {state === "loading" && (
-            <div className="flex items-center gap-2 py-2" style={{ color: "var(--fg-muted)" }}>
-              <Icons.Refresh size={13} className="animate-spin" aria-hidden="true" />
+            <div
+              className="flex items-center gap-2 py-2"
+              style={{ color: "var(--fg-muted)" }}
+            >
+              <Icons.Refresh
+                size={13}
+                className="animate-spin"
+                aria-hidden="true"
+              />
               <span className="text-[12px]">Generating share link…</span>
             </div>
           )}
@@ -115,7 +131,10 @@ export function ShareModal({ snapshotId, onClose, onShareCreated }: ShareModalPr
               </p>
               <div
                 className="flex items-center gap-2 rounded-[6px] border px-3 py-2"
-                style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
+                style={{
+                  borderColor: "var(--border)",
+                  background: "var(--surface-2)",
+                }}
               >
                 <span
                   className="flex-1 min-w-0 text-[12px] truncate font-mono"
@@ -130,8 +149,14 @@ export function ShareModal({ snapshotId, onClose, onShareCreated }: ShareModalPr
                   className="shrink-0 flex items-center gap-1 h-[24px] px-2 rounded-[4px] text-[11px] font-medium transition-colors duration-[120ms] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
                   style={
                     copied
-                      ? { background: "var(--success-subtle)", color: "var(--success)" }
-                      : { background: "var(--accent)", color: "var(--accent-fg)" }
+                      ? {
+                          background: "var(--success-subtle)",
+                          color: "var(--success)",
+                        }
+                      : {
+                          background: "var(--accent)",
+                          color: "var(--accent-fg)",
+                        }
                   }
                 >
                   {copied ? (

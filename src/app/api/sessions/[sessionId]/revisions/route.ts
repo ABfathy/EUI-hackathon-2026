@@ -33,12 +33,22 @@ export async function GET(
 
     const commentIds = events
       .filter((e) => e.type === "CLIENT_COMMENT_ADDED")
-      .map((e) => (e.metadata as Record<string, unknown>)?.commentId as string | undefined)
+      .map(
+        (e) =>
+          (e.metadata as Record<string, unknown>)?.commentId as
+            | string
+            | undefined,
+      )
       .filter(Boolean) as string[];
 
     const answerIds = events
       .filter((e) => e.type === "CLIENT_ANSWER_ADDED")
-      .map((e) => (e.metadata as Record<string, unknown>)?.answerId as string | undefined)
+      .map(
+        (e) =>
+          (e.metadata as Record<string, unknown>)?.answerId as
+            | string
+            | undefined,
+      )
       .filter(Boolean) as string[];
 
     const [comments, answers] = await Promise.all([
@@ -77,7 +87,10 @@ export async function GET(
           feedbackItemId = c.id;
           feedbackItemType = "comment";
         }
-      } else if (evt.type === "CLIENT_ANSWER_ADDED" && typeof meta.answerId === "string") {
+      } else if (
+        evt.type === "CLIENT_ANSWER_ADDED" &&
+        typeof meta.answerId === "string"
+      ) {
         const a = answerMap.get(meta.answerId);
         if (a) {
           feedbackBody = a.body;
@@ -98,8 +111,10 @@ export async function GET(
         version: evt.snapshot?.version ?? null,
         snapshotStatus: evt.snapshot?.status ?? null,
         trigger: typeof meta.trigger === "string" ? meta.trigger : null,
-        userMessage: typeof meta.userMessage === "string" ? meta.userMessage : null,
-        selectionText: typeof meta.selectionText === "string" ? meta.selectionText : null,
+        userMessage:
+          typeof meta.userMessage === "string" ? meta.userMessage : null,
+        selectionText:
+          typeof meta.selectionText === "string" ? meta.selectionText : null,
         feedbackBody,
         feedbackAuthor,
         feedbackReviewStatus,

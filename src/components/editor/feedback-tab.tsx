@@ -144,6 +144,7 @@ export function FeedbackTab({
   }, [sessionId, snapshotId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchFeedback();
   }, [fetchFeedback]);
 

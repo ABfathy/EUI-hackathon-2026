@@ -3,11 +3,15 @@
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 
+import { DiagramsShell } from "@/components/editor/diagrams-shell";
 import { FeedbackTab } from "@/components/editor/feedback-tab";
+import { ToolsPopover } from "@/components/editor/tools-popover";
 import { Icons } from "@/components/icons";
 import { IconButton } from "@/components/ui/icon-button";
 import { Pill } from "@/components/ui/pill";
 import { Tag } from "@/components/ui/tag";
+
+export const DIAGRAMS_TAB_ID = "diagrams";
 
 /* ── Types ─────────────────────────────────────────────── */
 export type AppState =
@@ -342,8 +346,12 @@ function DocLine({
         }}
         aria-hidden="true"
       >
-        {isReq && line.reqType === "claim" && !editing && onInsertLineAfter &&
-          line.section != null && line.orderIndex != null ? (
+        {isReq &&
+        line.reqType === "claim" &&
+        !editing &&
+        onInsertLineAfter &&
+        line.section != null &&
+        line.orderIndex != null ? (
           <span className="relative inline-flex items-center justify-end w-full">
             <span className="group-hover:opacity-0 transition-opacity duration-[80ms]">
               {line.lineNum > 0 ? line.lineNum : ""}
@@ -361,9 +369,11 @@ function DocLine({
                 // discard the second call so we never append twice.
                 if (insertingRef.current) return;
                 insertingRef.current = true;
-                void onInsertLineAfter(line.section!, line.orderIndex!).finally(() => {
-                  insertingRef.current = false;
-                });
+                void onInsertLineAfter(line.section!, line.orderIndex!).finally(
+                  () => {
+                    insertingRef.current = false;
+                  },
+                );
               }}
               className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-60 hover:!opacity-100 rounded-[3px] transition-opacity duration-[80ms] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
               style={{ color: "var(--accent)" }}
@@ -371,8 +381,10 @@ function DocLine({
               <Icons.Plus size={11} />
             </button>
           </span>
+        ) : line.lineNum > 0 ? (
+          line.lineNum
         ) : (
-          line.lineNum > 0 ? line.lineNum : ""
+          ""
         )}
       </div>
 
@@ -631,7 +643,10 @@ function EmptyDoc({
   if (state === "revising" || state === "generating") {
     const isRevising = state === "revising";
     // Skeleton rows: [type, width%] — mirror realistic doc structure
-    const skeletonRows: Array<{ kind: "h1" | "h2" | "meta" | "body" | "blank"; w?: number }> = [
+    const skeletonRows: Array<{
+      kind: "h1" | "h2" | "meta" | "body" | "blank";
+      w?: number;
+    }> = [
       { kind: "h1", w: 55 },
       { kind: "blank" },
       { kind: "meta", w: 28 },
@@ -667,7 +682,9 @@ function EmptyDoc({
           <div className="flex items-center gap-2 py-2">
             <span
               className="size-[7px] rounded-full animate-pulse shrink-0"
-              style={{ background: isRevising ? "var(--accent)" : "var(--warning)" }}
+              style={{
+                background: isRevising ? "var(--accent)" : "var(--warning)",
+              }}
               aria-hidden="true"
             />
             <span className="text-[12px]" style={{ color: "var(--fg-muted)" }}>
@@ -676,9 +693,14 @@ function EmptyDoc({
           </div>
         </div>
         {skeletonRows.map((row, i) => (
-          <div key={i} className={`flex items-start w-full ${gutterH[row.kind]}`}>
+          <div
+            key={i}
+            className={`flex items-start w-full ${gutterH[row.kind]}`}
+          >
             {/* Gutter — matches DocLine exactly */}
-            <div className={`shrink-0 flex items-start justify-end pr-3 pt-[3px] w-[52px] ${gutterH[row.kind]}`}>
+            <div
+              className={`shrink-0 flex items-start justify-end pr-3 pt-[3px] w-[52px] ${gutterH[row.kind]}`}
+            >
               {row.kind !== "blank" && row.kind !== "meta" && (
                 <div
                   className="h-[9px] w-[18px] rounded-[2px] animate-pulse"
@@ -687,7 +709,9 @@ function EmptyDoc({
               )}
             </div>
             {/* Content */}
-            <div className={`flex items-center flex-1 pr-6 ${gutterH[row.kind]}`}>
+            <div
+              className={`flex items-center flex-1 pr-6 ${gutterH[row.kind]}`}
+            >
               {row.kind !== "blank" && (
                 <div
                   className={`${heights[row.kind]} rounded-[3px] animate-pulse`}
@@ -728,13 +752,18 @@ function EmptyDoc({
             className="text-[13px] leading-[1.65] mb-3"
             style={{ color: "var(--fg-muted)" }}
           >
-            {generationError ?? "The pipeline could not complete. Check sources and try again."}
+            {generationError ??
+              "The pipeline could not complete. Check sources and try again."}
           </p>
           {onRetry && (
             <button
               onClick={onRetry}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] text-[12px] font-medium transition-opacity hover:opacity-80"
-              style={{ background: "var(--surface-2)", color: "var(--fg-secondary)", border: "1px solid var(--border)" }}
+              style={{
+                background: "var(--surface-2)",
+                color: "var(--fg-secondary)",
+                border: "1px solid var(--border)",
+              }}
             >
               <Icons.Refresh size={11} aria-hidden="true" />
               Retry
@@ -755,7 +784,19 @@ interface ChatBarProps {
   onClearSelection?: () => void;
   onSendMessage?: (msg: string, selectionText?: string) => Promise<void>;
   revising?: boolean;
+  selectedDiagramType?: string | null;
+  onClearDiagramType?: () => void;
+  onSelectDiagramType?: (type: string) => void;
+  diagramError?: string | null;
 }
+
+const DIAGRAM_TYPE_LABELS: Record<string, string> = {
+  FLOWCHART: "Flowchart",
+  SEQUENCE: "Sequence",
+  ARCHITECTURE: "Architecture",
+  ACTIVITY: "Activity",
+  USER_JOURNEY: "User Journey",
+};
 
 function ChatBar({
   onAttachFiles,
@@ -763,6 +804,10 @@ function ChatBar({
   onClearSelection,
   onSendMessage,
   revising,
+  selectedDiagramType,
+  onClearDiagramType,
+  onSelectDiagramType,
+  diagramError,
 }: ChatBarProps) {
   const [value, setValue] = useState("");
   const [sending, setSending] = useState(false);
@@ -771,7 +816,8 @@ function ChatBar({
 
   async function handleSend() {
     const trimmed = value.trim();
-    if (!trimmed || sending || revising || !onSendMessage) return;
+    if (sending || revising || !onSendMessage) return;
+    if (!trimmed && !selectedDiagramType) return;
     setSending(true);
     try {
       await onSendMessage(trimmed, selectedReqText ?? undefined);
@@ -807,9 +853,16 @@ function ChatBar({
               color: "var(--accent)",
             }}
           >
-            <Icons.MessageSquare size={10} aria-hidden="true" className="shrink-0" />
+            <Icons.MessageSquare
+              size={10}
+              aria-hidden="true"
+              className="shrink-0"
+            />
             <span className="truncate text-[11px]">
-              Re: {selectedReqText.length > 72 ? `${selectedReqText.slice(0, 72)}…` : selectedReqText}
+              Re:{" "}
+              {selectedReqText.length > 72
+                ? `${selectedReqText.slice(0, 72)}…`
+                : selectedReqText}
             </span>
           </span>
           <button
@@ -824,6 +877,44 @@ function ChatBar({
         </div>
       )}
 
+      {/* Diagram type pill */}
+      {selectedDiagramType && (
+        <div className="flex items-center gap-1.5 mb-2">
+          <span
+            className="flex items-center gap-1.5 h-[22px] px-2.5 rounded-[5px] border text-[11px]"
+            style={{
+              background: "color-mix(in srgb, var(--accent) 8%, transparent)",
+              borderColor: "color-mix(in srgb, var(--accent) 30%, transparent)",
+              color: "var(--accent)",
+            }}
+          >
+            <Icons.Tools size={10} aria-hidden="true" className="shrink-0" />
+            <span className="text-[11px]">
+              {DIAGRAM_TYPE_LABELS[selectedDiagramType] ?? selectedDiagramType}
+            </span>
+          </span>
+          <button
+            type="button"
+            aria-label="Clear diagram type"
+            onClick={onClearDiagramType}
+            className="shrink-0 inline-flex items-center justify-center size-[22px] rounded-[4px] transition-colors duration-[100ms] hover:bg-[var(--surface-3)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
+            style={{ color: "var(--fg-muted)" }}
+          >
+            <Icons.X size={10} />
+          </button>
+        </div>
+      )}
+
+      {/* Diagram generation error */}
+      {diagramError && (
+        <p
+          className="text-[11px] mb-2 px-0.5"
+          style={{ color: "var(--danger, #e53e3e)" }}
+        >
+          {diagramError}
+        </p>
+      )}
+
       {/* Input card */}
       <div
         className="flex flex-col rounded-[8px] border overflow-hidden"
@@ -832,7 +923,9 @@ function ChatBar({
           borderColor: "var(--border-strong)",
         }}
       >
-        <label htmlFor="doc-chat-input" className="sr-only">Chat input</label>
+        <label htmlFor="doc-chat-input" className="sr-only">
+          Chat input
+        </label>
         <input
           id="doc-chat-input"
           ref={inputRef}
@@ -847,9 +940,11 @@ function ChatBar({
           placeholder={
             revising
               ? "Revising brief…"
-              : onSendMessage
-                ? "Ask about requirements, request changes…"
-                : "Generate a brief first to start chatting"
+              : selectedDiagramType
+                ? "Describe any context for this diagram…"
+                : onSendMessage
+                  ? "Ask about requirements, request changes…"
+                  : "Generate a brief first to start chatting"
           }
           disabled={isDisabled}
           className="w-full bg-transparent text-[13px] px-4 pt-3 pb-2 focus-visible:outline-none disabled:opacity-50"
@@ -860,6 +955,12 @@ function ChatBar({
         {/* Action row */}
         <div className="flex items-center justify-between px-3 pb-2.5">
           <div className="flex items-center gap-1">
+            <ToolsPopover
+              disabled={isDisabled}
+              onSelectDiagramType={(type) => {
+                onSelectDiagramType?.(type);
+              }}
+            />
             <IconButton
               label="Attach source"
               onClick={() => fileInputRef.current?.click()}
@@ -880,7 +981,10 @@ function ChatBar({
             {!isDisabled && (
               <span
                 className="text-[10px] select-none"
-                style={{ color: "var(--fg-disabled)", fontFamily: "var(--font-mono)" }}
+                style={{
+                  color: "var(--fg-disabled)",
+                  fontFamily: "var(--font-mono)",
+                }}
               >
                 ↵ send
               </span>
@@ -888,7 +992,7 @@ function ChatBar({
             <IconButton
               label="Send message"
               onClick={() => void handleSend()}
-              disabled={isDisabled || !value.trim()}
+              disabled={isDisabled || (!value.trim() && !selectedDiagramType)}
             >
               {sending || revising ? (
                 <Icons.Download size={13} className="animate-spin" />
@@ -908,7 +1012,13 @@ function applyFilter(lines: DocLineData[], query: string): DocLineData[] {
   if (!query.trim()) return lines;
   const q = query.toLowerCase();
   return lines.filter((l) => {
-    if (l.type === "h1" || l.type === "h2" || l.type === "meta" || l.type === "req-header") return true;
+    if (
+      l.type === "h1" ||
+      l.type === "h2" ||
+      l.type === "meta" ||
+      l.type === "req-header"
+    )
+      return true;
     if (l.type === "blank") return false;
     return l.text?.toLowerCase().includes(q) ?? false;
   });
@@ -935,6 +1045,9 @@ export interface DocViewProps {
   onClearSelection?: () => void;
   onSendMessage?: (msg: string, selectionText?: string) => Promise<void>;
   revising?: boolean;
+  selectedDiagramType?: string | null;
+  onClearDiagramType?: () => void;
+  onSelectDiagramType?: (type: string) => void;
   onUpdateLine?: (
     reqId: string,
     reqType: "claim" | "question",
@@ -955,6 +1068,9 @@ export interface DocViewProps {
   sessionId?: string | null;
   snapshotId?: string | null;
   onShareBrief?: () => void;
+  diagrams?: import("@/components/editor/diagrams-shell").DiagramItem[];
+  diagramsLoading?: boolean;
+  diagramError?: string | null;
   onRequestRegenerate?: (snapshotId: string) => void;
   regeneratedSnapshotIds?: Set<string>;
 }
@@ -996,6 +1112,12 @@ export function DocView({
   snapshotId,
   onRequestRegenerate,
   onShareBrief,
+  selectedDiagramType,
+  onClearDiagramType,
+  onSelectDiagramType,
+  diagramError,
+  diagrams = [],
+  diagramsLoading = false,
   regeneratedSnapshotIds,
 }: DocViewProps) {
   const [filterOpen, setFilterOpen] = useState(false);
@@ -1024,10 +1146,19 @@ export function DocView({
     generating ||
     revising ||
     !onGenerateBrief;
+  const showingDiagrams = activeWorkspaceTab === DIAGRAMS_TAB_ID;
   const showingComparison =
-    activeWorkspaceTab !== "draft" && activeComparisonContent;
+    activeWorkspaceTab !== "draft" &&
+    !showingDiagrams &&
+    !feedbackTabs.some((t) => t.id === activeWorkspaceTab) &&
+    activeComparisonContent;
   const activeFeedbackTab = feedbackTabs.find((t) => t.id === activeWorkspaceTab) ?? null;
   const showingFeedback = activeFeedbackTab !== null;
+  const showTabBar =
+    comparisonTabs.length > 0 ||
+    diagrams.length > 0 ||
+    diagramsLoading ||
+    feedbackTabs.length > 0;
 
   return (
     <div
@@ -1079,14 +1210,23 @@ export function DocView({
           {filterOpen ? (
             <div
               className="flex items-center gap-1 h-[22px] px-1.5 rounded-[4px] border"
-              style={{ background: "var(--surface-2)", borderColor: "var(--border-strong)" }}
+              style={{
+                background: "var(--surface-2)",
+                borderColor: "var(--border-strong)",
+              }}
             >
-              <Icons.Filter size={10} aria-hidden="true" style={{ color: "var(--fg-muted)" }} />
+              <Icons.Filter
+                size={10}
+                aria-hidden="true"
+                style={{ color: "var(--fg-muted)" }}
+              />
               <input
                 ref={filterInputRef}
                 value={filterQuery}
                 onChange={(e) => setFilterQuery(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Escape") closeFilter(); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") closeFilter();
+                }}
                 placeholder="Filter requirements…"
                 className="w-[160px] bg-transparent text-[11px] focus-visible:outline-none"
                 style={{ color: "var(--fg-primary)" }}
@@ -1107,7 +1247,9 @@ export function DocView({
               type="button"
               onClick={() => setFilterOpen(true)}
               className="flex items-center gap-1 h-[22px] px-2 rounded-[4px] text-[11px] transition-colors duration-[120ms] hover:bg-[var(--surface-3)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
-              style={{ color: filterQuery ? "var(--accent)" : "var(--fg-tertiary)" }}
+              style={{
+                color: filterQuery ? "var(--accent)" : "var(--fg-tertiary)",
+              }}
             >
               <Icons.Filter size={11} aria-hidden="true" />
               <span>Filter</span>
@@ -1124,131 +1266,204 @@ export function DocView({
               <span>Share</span>
             </button>
           )}
+          <button
+            type="button"
+            disabled={generateDisabled}
+            title={
+              generating
+                ? "Generation in progress"
+                : generateDisabled
+                  ? "Add sources first"
+                  : undefined
+            }
+            onClick={onGenerateBrief}
+            className="flex items-center gap-1 h-[22px] px-2 rounded-[4px] text-[11px] font-medium transition-colors duration-[120ms] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            style={
+              canGenerate && !generateDisabled
+                ? { background: "var(--accent)", color: "var(--accent-fg)" }
+                : { background: "var(--surface-3)", color: "var(--fg-muted)" }
+            }
+          >
+            {hasSnapshot && !generating ? (
+              <Icons.Refresh size={11} aria-hidden="true" />
+            ) : (
+              <Icons.Download
+                size={11}
+                aria-hidden="true"
+                className={generating ? "animate-spin" : undefined}
+              />
+            )}
+            <span>
+              {generating
+                ? "Generating..."
+                : hasSnapshot
+                  ? "Regenerate"
+                  : "Generate Brief"}
+            </span>
+          </button>
         </div>
       </div>
 
-      <div
-        className="flex items-center h-8 px-2 shrink-0 border-b gap-1 overflow-x-auto"
-        style={{
-          background: "var(--surface-1)",
-          borderColor: "var(--border)",
-        }}
-        role="tablist"
-        aria-label="Workspace tabs"
-      >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeWorkspaceTab === "draft"}
-          onClick={() => onSelectWorkspaceTab?.("draft")}
-          className="inline-flex items-center h-[24px] px-2 rounded-[4px] text-[11px] font-medium border transition-colors duration-[120ms] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
-          style={
-            activeWorkspaceTab === "draft"
-              ? {
-                background: "var(--surface-3)",
-                borderColor: "var(--border-strong)",
-                color: "var(--fg-primary)",
-              }
-              : {
-                background: "transparent",
-                borderColor: "transparent",
-                color: "var(--fg-tertiary)",
-              }
-          }
+      {showTabBar && (
+        <div
+          className="flex items-center h-8 px-2 shrink-0 border-b gap-1 overflow-x-auto"
+          style={{
+            background: "var(--surface-1)",
+            borderColor: "var(--border)",
+          }}
+          role="tablist"
+          aria-label="Workspace tabs"
         >
-          Draft
-        </button>
-        {feedbackTabs.map((tab) => {
-          const active = activeWorkspaceTab === tab.id;
-          return (
-            <div
-              key={tab.id}
-              className="group inline-flex items-center h-[24px] max-w-[260px] rounded-[4px] text-[11px] font-medium border transition-colors duration-[120ms]"
-              style={
-                active
-                  ? {
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeWorkspaceTab === "draft"}
+            onClick={() => onSelectWorkspaceTab?.("draft")}
+            className="inline-flex items-center h-[24px] px-2 rounded-[4px] text-[11px] font-medium border transition-colors duration-[120ms] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
+            style={
+              activeWorkspaceTab === "draft"
+                ? {
                     background: "var(--surface-3)",
                     borderColor: "var(--border-strong)",
                     color: "var(--fg-primary)",
                   }
-                  : {
+                : {
                     background: "transparent",
                     borderColor: "transparent",
                     color: "var(--fg-tertiary)",
                   }
-              }
-            >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => onSelectWorkspaceTab?.(tab.id)}
-                className="inline-flex items-center gap-1 h-full min-w-0 px-2 rounded-l-[4px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
-                style={{ color: "inherit" }}
-              >
-                <Icons.MessageSquare size={11} aria-hidden="true" className="shrink-0" />
-                <span className="truncate">{tab.label}</span>
-              </button>
-              <button
-                type="button"
-                aria-label={`Close ${tab.label}`}
-                onClick={() => onCloseFeedbackTab?.(tab.id)}
-                className="inline-flex items-center justify-center size-[20px] mr-0.5 rounded-[3px] opacity-70 transition-opacity duration-[120ms] hover:opacity-100 hover:bg-[var(--surface-2)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
-                style={{ color: "var(--fg-muted)" }}
-              >
-                <Icons.X size={9} aria-hidden="true" />
-              </button>
-            </div>
-          );
-        })}
-        {comparisonTabs.map((tab) => {
-          const active = activeWorkspaceTab === tab.id;
-          return (
-            <div
-              key={tab.id}
-              className="group inline-flex items-center h-[24px] max-w-[260px] rounded-[4px] text-[11px] font-medium border transition-colors duration-[120ms]"
-              style={
-                active
-                  ? {
+            }
+          >
+            Draft
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={showingDiagrams}
+            onClick={() => onSelectWorkspaceTab?.(DIAGRAMS_TAB_ID)}
+            className="inline-flex items-center gap-1.5 h-[24px] px-2 rounded-[4px] text-[11px] font-medium border transition-colors duration-[120ms] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
+            style={
+              showingDiagrams
+                ? {
                     background: "var(--surface-3)",
                     borderColor: "var(--border-strong)",
                     color: "var(--fg-primary)",
                   }
-                  : {
+                : {
                     background: "transparent",
                     borderColor: "transparent",
                     color: "var(--fg-tertiary)",
                   }
-              }
-            >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => onSelectWorkspaceTab?.(tab.id)}
-                className="inline-flex items-center gap-1 h-full min-w-0 px-2 rounded-l-[4px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
-                style={{ color: "inherit" }}
+            }
+          >
+            <Icons.Tools size={11} aria-hidden="true" />
+            Diagrams
+            {diagrams.length > 0 && (
+              <span
+                className="inline-flex items-center justify-center h-[14px] min-w-[14px] px-1 rounded-[3px] text-[9px] font-medium tabular-nums"
+                style={{
+                  background: showingDiagrams
+                    ? "var(--surface-2)"
+                    : "color-mix(in srgb, var(--accent) 15%, transparent)",
+                  color: showingDiagrams ? "var(--fg-muted)" : "var(--accent)",
+                }}
               >
-                <Icons.GitCompare
-                  size={11}
-                  aria-hidden="true"
-                  className="shrink-0"
-                />
-                <span className="truncate">{tab.title}</span>
-              </button>
-              <button
-                type="button"
-                aria-label={`Close ${tab.title}`}
-                onClick={() => onCloseComparisonTab?.(tab.id)}
-                className="inline-flex items-center justify-center size-[20px] mr-0.5 rounded-[3px] opacity-70 transition-opacity duration-[120ms] hover:opacity-100 hover:bg-[var(--surface-2)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
-                style={{ color: "var(--fg-muted)" }}
+                {diagrams.length}
+              </span>
+            )}
+          </button>
+          {feedbackTabs.map((tab) => {
+            const active = activeWorkspaceTab === tab.id;
+            return (
+              <div
+                key={tab.id}
+                className="group inline-flex items-center h-[24px] max-w-[260px] rounded-[4px] text-[11px] font-medium border transition-colors duration-[120ms]"
+                style={
+                  active
+                    ? {
+                        background: "var(--surface-3)",
+                        borderColor: "var(--border-strong)",
+                        color: "var(--fg-primary)",
+                      }
+                    : {
+                        background: "transparent",
+                        borderColor: "transparent",
+                        color: "var(--fg-tertiary)",
+                      }
+                }
               >
-                <Icons.X size={9} aria-hidden="true" />
-              </button>
-            </div>
-          );
-        })}
-      </div>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => onSelectWorkspaceTab?.(tab.id)}
+                  className="inline-flex items-center gap-1 h-full min-w-0 px-2 rounded-l-[4px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
+                  style={{ color: "inherit" }}
+                >
+                  <Icons.MessageSquare size={11} aria-hidden="true" className="shrink-0" />
+                  <span className="truncate">{tab.label}</span>
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Close ${tab.label}`}
+                  onClick={() => onCloseFeedbackTab?.(tab.id)}
+                  className="inline-flex items-center justify-center size-[20px] mr-0.5 rounded-[3px] opacity-70 transition-opacity duration-[120ms] hover:opacity-100 hover:bg-[var(--surface-2)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
+                  style={{ color: "var(--fg-muted)" }}
+                >
+                  <Icons.X size={9} aria-hidden="true" />
+                </button>
+              </div>
+            );
+          })}
+          {comparisonTabs.map((tab) => {
+            const active = activeWorkspaceTab === tab.id;
+            return (
+              <div
+                key={tab.id}
+                className="group inline-flex items-center h-[24px] max-w-[260px] rounded-[4px] text-[11px] font-medium border transition-colors duration-[120ms]"
+                style={
+                  active
+                    ? {
+                        background: "var(--surface-3)",
+                        borderColor: "var(--border-strong)",
+                        color: "var(--fg-primary)",
+                      }
+                    : {
+                        background: "transparent",
+                        borderColor: "transparent",
+                        color: "var(--fg-tertiary)",
+                      }
+                }
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => onSelectWorkspaceTab?.(tab.id)}
+                  className="inline-flex items-center gap-1 h-full min-w-0 px-2 rounded-l-[4px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
+                  style={{ color: "inherit" }}
+                >
+                  <Icons.GitCompare
+                    size={11}
+                    aria-hidden="true"
+                    className="shrink-0"
+                  />
+                  <span className="truncate">{tab.title}</span>
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Close ${tab.title}`}
+                  onClick={() => onCloseComparisonTab?.(tab.id)}
+                  className="inline-flex items-center justify-center size-[20px] mr-0.5 rounded-[3px] opacity-70 transition-opacity duration-[120ms] hover:opacity-100 hover:bg-[var(--surface-2)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
+                  style={{ color: "var(--fg-muted)" }}
+                >
+                  <Icons.X size={9} aria-hidden="true" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Past-version banner */}
       {viewingVersion !== null && !showingComparison && (
@@ -1279,7 +1494,7 @@ export function DocView({
       )}
 
       {/* Doc scroll */}
-      <div className="flex-1 overflow-hidden flex flex-col">
+      <div className="flex-1 overflow-y-auto py-4">
         {showingFeedback && activeFeedbackTab && sessionId ? (
           <FeedbackTab
             sessionId={sessionId}
@@ -1287,80 +1502,58 @@ export function DocView({
             alreadyRegenerated={regeneratedSnapshotIds?.has(activeFeedbackTab.snapshotId)}
             onRequestRegenerate={onRequestRegenerate}
           />
+        ) : showingDiagrams ? (
+          <DiagramsShell diagrams={diagrams} loading={diagramsLoading} />
+        ) : showingComparison ? (
+          activeComparisonContent
+        ) : streamingLines && streamingLines.length > 0 ? (
+          streamingLines.map((line, i) => (
+            <DocLine
+              key={i}
+              line={line}
+              selectedReq={null}
+              onSelectReq={() => undefined}
+              // Streaming lines are read-only — editing is never active here.
+              isEditing={false}
+              onStartEdit={() => undefined}
+              onStopEdit={() => undefined}
+              isFirst={i === 0}
+            />
+          ))
+        ) : appState === "generating" || appState === "revising" ? (
+          <EmptyDoc
+            state={appState}
+            onAddSources={onAddSources}
+            generationError={generationError}
+            onRetry={onRetry}
+          />
+        ) : appState !== "ready" ? (
+          <EmptyDoc
+            state={appState}
+            onAddSources={onAddSources}
+            generationError={generationError}
+            onRetry={onRetry}
+          />
+        ) : lines.length === 0 ? (
+          <EmptyDoc state="no-sources" onAddSources={onAddSources} />
         ) : (
-        <div className="flex-1 overflow-y-auto">
-          {activeWorkspaceTab === "draft" && (!!onGenerateBrief || generating) && (
-            <div
-              className="sticky top-0 z-10 flex items-center justify-between px-4 py-2 border-b"
-              style={{ background: "var(--surface-1)", borderColor: "var(--border)" }}
-            >
-              <span
-                className="text-[11px]"
-                style={{ fontFamily: "var(--font-mono)", color: "var(--fg-muted)" }}
-              >
-                {hasSnapshot && currentVersion != null ? `v${currentVersion}` : "No brief yet"}
-              </span>
-              <button
-                type="button"
-                disabled={generateDisabled}
-                onClick={onGenerateBrief}
-                className="flex items-center gap-1 h-[22px] px-2 rounded-[4px] text-[11px] font-medium transition-colors duration-[120ms] hover:brightness-110 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)]"
-                style={{ background: "var(--accent)", color: "var(--accent-fg)" }}
-              >
-                {generating ? (
-                  <Icons.Refresh size={11} className="animate-spin" aria-hidden="true" />
-                ) : hasSnapshot ? (
-                  <Icons.Refresh size={11} aria-hidden="true" />
-                ) : (
-                  <Icons.Download size={11} aria-hidden="true" />
-                )}
-                <span>{generating ? "Generating…" : hasSnapshot ? "Regenerate" : "Generate Brief"}</span>
-              </button>
-            </div>
-          )}
-          <div className="py-4">
-          {showingComparison ? (
-            activeComparisonContent
-          ) : streamingLines && streamingLines.length > 0 ? (
-            streamingLines.map((line, i) => (
-              <DocLine
-                key={i}
-                line={line}
-                selectedReq={null}
-                onSelectReq={() => undefined}
-                isEditing={false}
-                onStartEdit={() => undefined}
-                onStopEdit={() => undefined}
-                isFirst={i === 0}
-              />
-            ))
-          ) : (appState === "generating" || appState === "revising") ? (
-            <EmptyDoc state={appState} onAddSources={onAddSources} generationError={generationError} onRetry={onRetry} />
-          ) : appState !== "ready" ? (
-            <EmptyDoc state={appState} onAddSources={onAddSources} generationError={generationError} onRetry={onRetry} />
-          ) : lines.length === 0 ? (
-            <EmptyDoc state="no-sources" onAddSources={onAddSources} />
-          ) : (
-            applyFilter(lines, filterQuery).map((line, i) => (
-              <DocLine
-                key={line.reqId ?? i}
-                line={line}
-                selectedReq={selectedReq}
-                onSelectReq={onSelectReq}
-                onUpdateLine={onUpdateLine}
-                onInsertLineAfter={onInsertLineAfter}
-                autoFocus={!!autoFocusReqId && line.reqId === autoFocusReqId}
-                onAutoFocusConsumed={onAutoFocusConsumed}
-                onOpenSource={onOpenSource}
-                isEditing={!!line.reqId && line.reqId === activeEditReqId}
-                onStartEdit={() => line.reqId && setActiveEditReqId(line.reqId)}
-                onStopEdit={() => setActiveEditReqId(null)}
-                isFirst={i === 0}
-              />
-            ))
-          )}
-          </div>
-        </div>
+          applyFilter(lines, filterQuery).map((line, i) => (
+            <DocLine
+              key={line.reqId ?? i}
+              line={line}
+              selectedReq={selectedReq}
+              onSelectReq={onSelectReq}
+              onUpdateLine={onUpdateLine}
+              onInsertLineAfter={onInsertLineAfter}
+              autoFocus={!!autoFocusReqId && line.reqId === autoFocusReqId}
+              onAutoFocusConsumed={onAutoFocusConsumed}
+              onOpenSource={onOpenSource}
+              isEditing={!!line.reqId && line.reqId === activeEditReqId}
+              onStartEdit={() => line.reqId && setActiveEditReqId(line.reqId)}
+              onStopEdit={() => setActiveEditReqId(null)}
+              isFirst={i === 0}
+            />
+          ))
         )}
       </div>
 
@@ -1372,6 +1565,10 @@ export function DocView({
           onClearSelection={onClearSelection}
           onSendMessage={onSendMessage}
           revising={revising}
+          selectedDiagramType={selectedDiagramType}
+          onClearDiagramType={onClearDiagramType}
+          onSelectDiagramType={onSelectDiagramType}
+          diagramError={diagramError}
         />
       )}
     </div>

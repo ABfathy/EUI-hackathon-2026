@@ -5,7 +5,12 @@ import { prisma } from "@/lib/prisma";
 
 import { type DiagramType } from "../../../generated/prisma/client";
 import { serializeCurrentBrief } from "./brief-revision";
-import { extractJson, getClient, MODEL } from "./google-genai";
+import {
+  getClient,
+  MODEL,
+  parseStructuredResponse,
+  STRUCTURED_OUTPUT_MAX_TOKENS,
+} from "./google-genai";
 
 const DiagramOutputSchema = z.object({
   title: z.string().min(1).max(200),
@@ -140,7 +145,7 @@ export async function generateDiagram(input: GenerateDiagramInput) {
     config: {
       systemInstruction: DIAGRAM_SYSTEM_PROMPTS[diagramType],
       temperature: 0.4,
-      maxOutputTokens: 4096,
+      maxOutputTokens: STRUCTURED_OUTPUT_MAX_TOKENS,
       responseMimeType: "application/json",
       responseJsonSchema: diagramResponseJsonSchema,
     },
@@ -149,7 +154,7 @@ export async function generateDiagram(input: GenerateDiagramInput) {
   let rawText = result.text ?? "";
   let parsed: z.infer<typeof DiagramOutputSchema>;
   try {
-    parsed = DiagramOutputSchema.parse(extractJson(rawText));
+    parsed = parseStructuredResponse(result, DiagramOutputSchema).parsed;
   } catch {
     const retryResult = await getClient().models.generateContent({
       model: MODEL,
@@ -168,13 +173,13 @@ export async function generateDiagram(input: GenerateDiagramInput) {
       config: {
         systemInstruction: DIAGRAM_SYSTEM_PROMPTS[diagramType],
         temperature: 0.2,
-        maxOutputTokens: 4096,
+        maxOutputTokens: STRUCTURED_OUTPUT_MAX_TOKENS,
         responseMimeType: "application/json",
         responseJsonSchema: diagramResponseJsonSchema,
       },
     });
     rawText = retryResult.text ?? "";
-    parsed = DiagramOutputSchema.parse(extractJson(rawText));
+    parsed = parseStructuredResponse(retryResult, DiagramOutputSchema).parsed;
   }
 
   await prisma.briefDiagram.deleteMany({ where: { snapshotId, diagramType } });

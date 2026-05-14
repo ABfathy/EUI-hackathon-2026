@@ -549,6 +549,7 @@ export function EditorShell({
   const handleUploadFiles = useCallback(
     async (files: File[]) => {
       if (!sessionId || files.length === 0) return;
+      setSourcesError(undefined);
       setSourcesLoading(true);
       try {
         const isTxt = (f: File) =>
@@ -570,11 +571,15 @@ export function EditorShell({
           }),
         );
 
-        if (uploadable.length > 0) {
-          await startUpload(uploadable, { sessionId });
-        } else {
+        if (txtFiles.length > 0) {
           await refreshSources();
         }
+
+        if (uploadable.length > 0) {
+          await startUpload(uploadable, { sessionId });
+        }
+
+        await refreshSources();
       } catch {
         setSourcesError("Upload failed.");
       } finally {

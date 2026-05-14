@@ -459,11 +459,22 @@ function SourcesTab({
     await Promise.all(
       items.map(async (item) => {
         const entry = item.webkitGetAsEntry();
-        if (!entry) return;
-        const files = await collectFolderFiles(entry);
-        allFiles.push(...files.filter(isAccepted));
+        if (entry) {
+          const files = await collectFolderFiles(entry);
+          allFiles.push(...files.filter(isAccepted));
+          return;
+        }
+
+        const file = item.getAsFile();
+        if (file && isAccepted(file)) {
+          allFiles.push(file);
+        }
       }),
     );
+
+    if (allFiles.length === 0 && e.dataTransfer.files.length > 0) {
+      allFiles.push(...Array.from(e.dataTransfer.files).filter(isAccepted));
+    }
 
     if (allFiles.length > 0) void onUploadFiles(allFiles);
   }

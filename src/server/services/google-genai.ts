@@ -2,7 +2,12 @@ import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { GoogleGenAI, Type } from "@google/genai";
+import {
+  FinishReason,
+  GoogleGenAI,
+  type GenerateContentResponse,
+  Type,
+} from "@google/genai";
 import { z } from "zod";
 
 import { serverEnv } from "@/lib/env/server";
@@ -12,6 +17,7 @@ import {
 } from "@/server/validators/brief-output";
 
 export const MODEL = "gemini-2.5-flash";
+export const STRUCTURED_OUTPUT_MAX_TOKENS = 16_384;
 const TEMP_CREDENTIALS_PATH = join(
   tmpdir(),
   "requirex-google-service-account.json",
@@ -560,6 +566,55 @@ export function extractJson(raw: string) {
   }
 }
 
+function getStructuredResponseMetadata(response: GenerateContentResponse) {
+  const candidate = response.candidates?.[0];
+
+  return {
+    finishReason: candidate?.finishReason ?? null,
+    finishMessage: candidate?.finishMessage ?? null,
+    tokenCount: candidate?.tokenCount ?? null,
+    candidateCount: response.candidates?.length ?? 0,
+    totalTokenCount: response.usageMetadata?.totalTokenCount ?? null,
+    candidateTokenCount: response.usageMetadata?.candidatesTokenCount ?? null,
+  };
+}
+
+export function parseStructuredResponse<T>(
+  response: GenerateContentResponse,
+  schema: z.ZodType<T>,
+) {
+  const rawText = response.text;
+  const metadata = getStructuredResponseMetadata(response);
+
+  if (!rawText) {
+    const finishDetails = metadata.finishReason
+      ? ` Finish reason: ${metadata.finishReason}.`
+      : "";
+    throw new Error(
+      `Model returned an empty response.${finishDetails}`.trim(),
+    );
+  }
+
+  if (
+    metadata.finishReason &&
+    metadata.finishReason !== FinishReason.STOP &&
+    metadata.finishReason !== FinishReason.FINISH_REASON_UNSPECIFIED
+  ) {
+    const detail = metadata.finishMessage
+      ? ` ${metadata.finishMessage}`
+      : "";
+    throw new SyntaxError(
+      `Structured output ended with finish reason ${metadata.finishReason}.${detail}`.trim(),
+    );
+  }
+
+  return {
+    rawText,
+    parsed: schema.parse(extractJson(rawText)),
+    metadata,
+  };
+}
+
 const REVISION_SYSTEM_PROMPT = `You are a senior product analyst updating an existing structured brief based on an internal user's instruction.
 
 You will receive:
@@ -652,7 +707,7 @@ export async function* generateBriefStreamFromBundle(
       config: {
         systemInstruction: SYSTEM_PROMPT,
         temperature: 0.2,
-        maxOutputTokens: 16384,
+        maxOutputTokens: STRUCTURED_OUTPUT_MAX_TOKENS,
         responseMimeType: "application/json",
         responseJsonSchema,
       },
@@ -697,7 +752,7 @@ export async function* reviseBriefStreamFromBundle(
       config: {
         systemInstruction: REVISION_SYSTEM_PROMPT,
         temperature: 0.3,
-        maxOutputTokens: 4096,
+        maxOutputTokens: STRUCTURED_OUTPUT_MAX_TOKENS,
         responseMimeType: "application/json",
         responseJsonSchema,
       },
@@ -742,7 +797,7 @@ export async function reviseBriefFromBundle(
       config: {
         systemInstruction: REVISION_SYSTEM_PROMPT,
         temperature: 0.3,
-        maxOutputTokens: 4096,
+        maxOutputTokens: STRUCTURED_OUTPUT_MAX_TOKENS,
         responseMimeType: "application/json",
         responseJsonSchema,
       },
@@ -760,18 +815,11 @@ export async function reviseBriefFromBundle(
     throw error;
   }
 
-  const rawText = response.text;
-  if (!rawText) {
-    logGoogleGenAI("error", "Gemini revision returned an empty response.", {
-      sourceAssetCount: bundle.assets.length,
-      retry: Boolean(retryHint),
-    });
-    throw new Error("Model returned an empty response.");
-  }
-
   try {
-    return BriefOutputSchema.parse(extractJson(rawText));
+    return parseStructuredResponse(response, BriefOutputSchema).parsed;
   } catch (error) {
+    const rawText = response.text ?? "";
+    const metadata = getStructuredResponseMetadata(response);
     logGoogleGenAI(
       "warn",
       "Gemini revision returned invalid structured output.",
@@ -779,6 +827,11 @@ export async function reviseBriefFromBundle(
         sourceAssetCount: bundle.assets.length,
         retry: Boolean(retryHint),
         rawPreview: rawText.slice(0, 500),
+        finishReason: metadata.finishReason,
+        finishMessage: metadata.finishMessage,
+        tokenCount: metadata.tokenCount,
+        totalTokenCount: metadata.totalTokenCount,
+        candidateTokenCount: metadata.candidateTokenCount,
         errorMessage:
           error instanceof Error
             ? error.message
@@ -828,23 +881,20 @@ export async function transcribeAudioToEnglish(input: {
     throw error;
   }
 
-  const rawText = response.text;
-  if (!rawText) {
-    logGoogleGenAI("error", "Gemini audio transcription returned empty text.", {
-      mimeType: input.mimeType,
-    });
-    throw new Error("Model returned an empty audio transcription response.");
-  }
-
   try {
-    return AudioTranscriptionResultSchema.parse(extractJson(rawText));
+    return parseStructuredResponse(response, AudioTranscriptionResultSchema)
+      .parsed;
   } catch (error) {
+    const rawText = response.text ?? "";
+    const metadata = getStructuredResponseMetadata(response);
     logGoogleGenAI(
       "warn",
       "Gemini audio transcription returned invalid JSON.",
       {
         mimeType: input.mimeType,
         rawPreview: rawText.slice(0, 500),
+        finishReason: metadata.finishReason,
+        finishMessage: metadata.finishMessage,
         errorMessage:
           error instanceof Error
             ? error.message
@@ -867,7 +917,7 @@ export async function generateBriefFromBundle(
       config: {
         systemInstruction: SYSTEM_PROMPT,
         temperature: 0.2,
-        maxOutputTokens: 16384,
+        maxOutputTokens: STRUCTURED_OUTPUT_MAX_TOKENS,
         responseMimeType: "application/json",
         responseJsonSchema,
       },
@@ -885,22 +935,20 @@ export async function generateBriefFromBundle(
     throw error;
   }
 
-  const rawText = response.text;
-  if (!rawText) {
-    logGoogleGenAI("error", "Gemini returned an empty response.", {
-      sourceAssetCount: bundle.assets.length,
-      retry: Boolean(retryHint),
-    });
-    throw new Error("Model returned an empty response.");
-  }
-
   try {
-    return BriefOutputSchema.parse(extractJson(rawText));
+    return parseStructuredResponse(response, BriefOutputSchema).parsed;
   } catch (error) {
+    const rawText = response.text ?? "";
+    const metadata = getStructuredResponseMetadata(response);
     logGoogleGenAI("warn", "Gemini returned invalid structured output.", {
       sourceAssetCount: bundle.assets.length,
       retry: Boolean(retryHint),
       rawPreview: rawText.slice(0, 500),
+      finishReason: metadata.finishReason,
+      finishMessage: metadata.finishMessage,
+      tokenCount: metadata.tokenCount,
+      totalTokenCount: metadata.totalTokenCount,
+      candidateTokenCount: metadata.candidateTokenCount,
       errorMessage:
         error instanceof Error
           ? error.message
@@ -924,7 +972,7 @@ export async function generateFinalizedDocumentFromBriefs(
       config: {
         systemInstruction: FINALIZED_DOCUMENT_SYSTEM_PROMPT,
         temperature: 0.2,
-        maxOutputTokens: 16384,
+        maxOutputTokens: STRUCTURED_OUTPUT_MAX_TOKENS,
         responseMimeType: "application/json",
         responseJsonSchema: finalizedDocumentJsonSchema,
       },
@@ -942,18 +990,12 @@ export async function generateFinalizedDocumentFromBriefs(
     throw error;
   }
 
-  const rawText = response.text;
-  if (!rawText) {
-    logGoogleGenAI("error", "Gemini finalized document returned empty text.", {
-      briefVersionCount: briefVersions.length,
-      retry: Boolean(retryHint),
-    });
-    throw new Error("Model returned an empty finalized document response.");
-  }
-
   try {
-    return FinalizedDocumentOutputSchema.parse(extractJson(rawText));
+    return parseStructuredResponse(response, FinalizedDocumentOutputSchema)
+      .parsed;
   } catch (error) {
+    const rawText = response.text ?? "";
+    const metadata = getStructuredResponseMetadata(response);
     logGoogleGenAI(
       "warn",
       "Gemini finalized document returned invalid structured output.",
@@ -961,6 +1003,11 @@ export async function generateFinalizedDocumentFromBriefs(
         briefVersionCount: briefVersions.length,
         retry: Boolean(retryHint),
         rawPreview: rawText.slice(0, 500),
+        finishReason: metadata.finishReason,
+        finishMessage: metadata.finishMessage,
+        tokenCount: metadata.tokenCount,
+        totalTokenCount: metadata.totalTokenCount,
+        candidateTokenCount: metadata.candidateTokenCount,
         errorMessage:
           error instanceof Error
             ? error.message
@@ -985,7 +1032,7 @@ export async function* generateFinalizedDocumentStreamFromBriefs(
       config: {
         systemInstruction: FINALIZED_DOCUMENT_SYSTEM_PROMPT,
         temperature: 0.2,
-        maxOutputTokens: 16384,
+        maxOutputTokens: STRUCTURED_OUTPUT_MAX_TOKENS,
         responseMimeType: "application/json",
         responseJsonSchema: finalizedDocumentJsonSchema,
       },

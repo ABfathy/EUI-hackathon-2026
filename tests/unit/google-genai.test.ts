@@ -2,7 +2,10 @@ import { FinishReason, type GenerateContentResponse } from "@google/genai";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { parseStructuredResponse } from "@/server/services/google-genai";
+import {
+  normalizeBriefOutput,
+  parseStructuredResponse,
+} from "@/server/services/google-genai";
 
 const TestSchema = z.object({
   ok: z.boolean(),
@@ -65,5 +68,32 @@ describe("parseStructuredResponse", () => {
         TestSchema,
       ),
     ).toThrow(/empty response/i);
+  });
+});
+
+describe("normalizeBriefOutput", () => {
+  it("trims oversized generated-brief sections to schema limits", () => {
+    const claim = (i: number) => ({
+      text: `Claim ${i}`,
+      confidence: "HIGH" as const,
+      evidence: [],
+    });
+    const question = (i: number) => ({
+      text: `Question ${i}`,
+      reason: `Reason ${i}`,
+      evidence: [],
+    });
+
+    const result = normalizeBriefOutput({
+      summary: Array.from({ length: 13 }, (_, i) => claim(i)),
+      goals: Array.from({ length: 13 }, (_, i) => claim(i)),
+      ambiguities: Array.from({ length: 5 }, (_, i) => question(i)),
+      followUpQuestions: Array.from({ length: 5 }, (_, i) => question(i)),
+    });
+
+    expect(result.summary).toHaveLength(12);
+    expect(result.goals).toHaveLength(12);
+    expect(result.ambiguities).toHaveLength(4);
+    expect(result.followUpQuestions).toHaveLength(4);
   });
 });

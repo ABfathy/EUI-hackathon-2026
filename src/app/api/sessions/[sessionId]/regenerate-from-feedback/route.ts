@@ -7,6 +7,10 @@ import {
   requireInternalAuth,
 } from "@/server/auth/internal";
 import { BriefPipelineError, runBriefRevision } from "@/server/services/brief-revision";
+import {
+  FinalizedDocumentGenerationError,
+  reviseFinalizedDocumentFromFeedback,
+} from "@/server/services/finalized-documents";
 
 type RouteContext = { params: Promise<{ sessionId: string }> };
 
@@ -78,7 +82,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
     const snapshot = await prisma.briefSnapshot.findFirst({
       where: { id: parsed.data.snapshotId, session: { id: sessionId } },
-      select: { id: true },
+      select: { id: true, documentType: true },
     });
 
     if (!snapshot) {
@@ -87,12 +91,20 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
     const userMessage = await buildAcceptedFeedbackMessage(parsed.data.snapshotId);
 
-    const newSnapshot = await runBriefRevision({
-      sessionId,
-      snapshotId: parsed.data.snapshotId,
-      userMessage,
-      requestedBy: auth.clerkUserId,
-    });
+    const newSnapshot =
+      snapshot.documentType === "FINALIZED_DOCUMENT"
+        ? await reviseFinalizedDocumentFromFeedback({
+            sessionId,
+            snapshotId: parsed.data.snapshotId,
+            userMessage,
+            requestedBy: auth.clerkUserId,
+          })
+        : await runBriefRevision({
+            sessionId,
+            snapshotId: parsed.data.snapshotId,
+            userMessage,
+            requestedBy: auth.clerkUserId,
+          });
 
     return NextResponse.json({ ok: true, snapshotId: newSnapshot.snapshotId });
   } catch (error) {
@@ -112,6 +124,15 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
             : `Regeneration failed: ${error.message.slice(0, 200)}`,
         },
         { status: 503 },
+      );
+    }
+    if (error instanceof FinalizedDocumentGenerationError) {
+      return NextResponse.json(
+        {
+          error: error.code,
+          message: error.message,
+        },
+        { status: error.status },
       );
     }
     console.error({ scope: "api.sessions.regenerate-from-feedback.post", error });

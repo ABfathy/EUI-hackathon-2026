@@ -14,6 +14,7 @@ import { serverEnv } from "@/lib/env/server";
 import {
   BriefOutputSchema,
   FinalizedDocumentOutputSchema,
+  type BriefOutput,
 } from "@/server/validators/brief-output";
 
 export const MODEL = "gemini-2.5-flash";
@@ -181,6 +182,13 @@ const responseJsonSchema = {
   required: ["summary", "goals", "ambiguities", "followUpQuestions"],
 } as const;
 
+const BRIEF_SECTION_LIMITS = {
+  summary: 12,
+  goals: 12,
+  ambiguities: 4,
+  followUpQuestions: 4,
+} satisfies Record<keyof BriefOutput, number>;
+
 const finalizedClaimJsonSchema = {
   type: Type.OBJECT,
   properties: {
@@ -324,6 +332,46 @@ Rules:
 - Prefer more content over sparse summaries. Write clear, detailed requirement statements with actors, behaviors, constraints, dependencies, and expected outcomes where the brief supports or reasonably implies them.
 - Convert missing details into reasonable assumptions or write "To be confirmed later" inside the relevant section text.
 - Keep the document internally consistent. Prefer newer brief versions when versions conflict, while preserving useful detail from older versions.
+- Respect these maximum item counts:
+  - projectOverview: 12
+  - projectGoals: 12
+  - mainFeatures: 16
+  - functionalRequirements: 24
+  - nonFunctionalRequirements: 16
+  - userFlows: 16
+- Output JSON only.`;
+
+const FINALIZED_DOCUMENT_REVISION_SYSTEM_PROMPT = `You are a senior product analyst updating an existing finalized requirements document based on reviewed client feedback.
+
+You will receive:
+1. The current finalized requirements document.
+2. The reviewed feedback items that should be incorporated.
+
+Produce an updated finalized requirements document as JSON with exactly these top-level keys:
+- "projectOverview"
+- "projectGoals"
+- "mainFeatures"
+- "functionalRequirements"
+- "nonFunctionalRequirements"
+- "userFlows"
+
+Each item is a claim object with "text", "confidence", and "evidence". Evidence can be an empty array because this revision is based on an existing finalized document plus reviewed feedback rather than raw source blocks.
+
+Rules:
+- Incorporate the reviewed feedback precisely where relevant.
+- Preserve unaffected requirements and document structure.
+- Ask no questions of any kind.
+- Do not create ambiguity or follow-up question sections.
+- Keep the document internally consistent after applying the feedback.
+- If feedback conflicts with the current document, prefer the reviewed feedback.
+- If a comment is directional but incomplete, make the smallest reasonable edit that satisfies it without inventing major new scope.
+- Respect these maximum item counts:
+  - projectOverview: 12
+  - projectGoals: 12
+  - mainFeatures: 16
+  - functionalRequirements: 24
+  - nonFunctionalRequirements: 16
+  - userFlows: 16
 - Output JSON only.`;
 
 export class GoogleGenAIConfigError extends Error {
@@ -552,6 +600,18 @@ function buildFinalizedDocumentPrompt(
   return `Compose a finalized requirements document from these generated brief versions. Use the latest version as the strongest source when details conflict, but preserve useful detail from earlier versions.\n\n${versionsText}${retryText}`;
 }
 
+function buildFinalizedDocumentRevisionPrompt(
+  currentDocumentSummary: string,
+  userMessage: string,
+  retryHint?: string,
+) {
+  const retryText = retryHint
+    ? `\n\nYour previous response was invalid: ${retryHint}\nReturn only corrected JSON.`
+    : "";
+
+  return `Current finalized document:\n${currentDocumentSummary}\n\nReviewed feedback to incorporate:\n${userMessage}${retryText}`;
+}
+
 export function extractJson(raw: string) {
   const trimmed = raw.trim();
   try {
@@ -564,6 +624,26 @@ export function extractJson(raw: string) {
     }
     throw new Error("Model output was not valid JSON.");
   }
+}
+
+export function normalizeBriefOutput(raw: unknown): BriefOutput {
+  const object =
+    raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
+
+  if (!object) {
+    return BriefOutputSchema.parse(raw);
+  }
+
+  const trimmed = Object.fromEntries(
+    (
+      Object.keys(BRIEF_SECTION_LIMITS) as Array<keyof typeof BRIEF_SECTION_LIMITS>
+    ).map((key) => {
+      const value = object[key];
+      return [key, Array.isArray(value) ? value.slice(0, BRIEF_SECTION_LIMITS[key]) : value];
+    }),
+  );
+
+  return BriefOutputSchema.parse(trimmed);
 }
 
 export function getStructuredResponseMetadata(response: GenerateContentResponse) {
@@ -838,7 +918,9 @@ export async function reviseBriefFromBundle(
   }
 
   try {
-    return parseStructuredResponse(response, BriefOutputSchema).parsed;
+    return normalizeBriefOutput(
+      parseStructuredResponse(response, BriefOutputSchema).parsed,
+    );
   } catch (error) {
     const rawText = response.text ?? "";
     const metadata = getStructuredResponseMetadata(response);
@@ -958,7 +1040,9 @@ export async function generateBriefFromBundle(
   }
 
   try {
-    return parseStructuredResponse(response, BriefOutputSchema).parsed;
+    return normalizeBriefOutput(
+      parseStructuredResponse(response, BriefOutputSchema).parsed,
+    );
   } catch (error) {
     const rawText = response.text ?? "";
     const metadata = getStructuredResponseMetadata(response);
@@ -1023,6 +1107,71 @@ export async function generateFinalizedDocumentFromBriefs(
       "Gemini finalized document returned invalid structured output.",
       {
         briefVersionCount: briefVersions.length,
+        retry: Boolean(retryHint),
+        rawPreview: rawText.slice(0, 500),
+        finishReason: metadata.finishReason,
+        finishMessage: metadata.finishMessage,
+        tokenCount: metadata.tokenCount,
+        totalTokenCount: metadata.totalTokenCount,
+        candidateTokenCount: metadata.candidateTokenCount,
+        errorMessage:
+          error instanceof Error
+            ? error.message
+            : "Failed to parse Gemini output.",
+      },
+    );
+    throw error;
+  }
+}
+
+export async function generateFinalizedDocumentRevision(
+  currentDocumentSummary: string,
+  userMessage: string,
+  retryHint?: string,
+) {
+  let response;
+  try {
+    response = await getClient().models.generateContent({
+      model: MODEL,
+      contents: [
+        {
+          text: buildFinalizedDocumentRevisionPrompt(
+            currentDocumentSummary,
+            userMessage,
+            retryHint,
+          ),
+        },
+      ],
+      config: {
+        systemInstruction: FINALIZED_DOCUMENT_REVISION_SYSTEM_PROMPT,
+        temperature: 0.2,
+        maxOutputTokens: STRUCTURED_OUTPUT_MAX_TOKENS,
+        responseMimeType: "application/json",
+        responseJsonSchema: finalizedDocumentJsonSchema,
+      },
+    });
+  } catch (error) {
+    logGoogleGenAI("error", "Gemini finalized document revision call failed.", {
+      project: serverEnv.GOOGLE_CLOUD_PROJECT ?? null,
+      location: serverEnv.GOOGLE_CLOUD_LOCATION ?? null,
+      retry: Boolean(retryHint),
+      errorName: error instanceof Error ? error.name : "UnknownError",
+      errorMessage:
+        error instanceof Error ? error.message : "Unknown Gemini error.",
+    });
+    throw error;
+  }
+
+  try {
+    return parseStructuredResponse(response, FinalizedDocumentOutputSchema)
+      .parsed;
+  } catch (error) {
+    const rawText = response.text ?? "";
+    const metadata = getStructuredResponseMetadata(response);
+    logGoogleGenAI(
+      "warn",
+      "Gemini finalized document revision returned invalid structured output.",
+      {
         retry: Boolean(retryHint),
         rawPreview: rawText.slice(0, 500),
         finishReason: metadata.finishReason,

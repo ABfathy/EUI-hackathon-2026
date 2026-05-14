@@ -6,6 +6,7 @@ import {
   generateBriefFromBundle,
   generateBriefStreamFromBundle,
   GoogleGenAIConfigError,
+  normalizeBriefOutput,
   type SourceBundle,
 } from "@/server/services/google-genai";
 import { normalizeTextToChunks } from "@/server/services/source-normalization";
@@ -17,7 +18,6 @@ import type {
   BriefEvidenceOutput,
   BriefOutput,
 } from "@/server/validators/brief-output";
-import { BriefOutputSchema } from "@/server/validators/brief-output";
 
 import type {
   BriefDocumentType,
@@ -688,7 +688,7 @@ export async function* runBriefGenerationStream(
     let output: BriefOutput;
     try {
       output = assertBriefOutputHasContent(
-        BriefOutputSchema.parse(extractJson(fullText)),
+        normalizeBriefOutput(extractJson(fullText)),
       );
     } catch (outputError) {
       logBriefPipeline(

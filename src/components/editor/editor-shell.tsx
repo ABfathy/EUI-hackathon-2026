@@ -63,6 +63,7 @@ interface WorkspaceFeedbackTab {
   id: string;
   snapshotId: string;
   label: string;
+  documentType: DocumentType | null;
 }
 
 type SessionRef = { id: string; title: string } | null;
@@ -1379,10 +1380,19 @@ export function EditorShell({
     const id = `feedback-${snapshotId}`;
     setFeedbackTabs((prev) => {
       if (prev.find((t) => t.id === id)) return prev;
-      return [...prev, { id, snapshotId, label: "Feedback" }];
+      const snapshot = snapshots.find((item) => item.id === snapshotId);
+      return [
+        ...prev,
+        {
+          id,
+          snapshotId,
+          label: "Feedback",
+          documentType: snapshot?.documentType ?? null,
+        },
+      ];
     });
     setActiveWorkspaceTab(id);
-  }, []);
+  }, [snapshots]);
 
   const handleCloseFeedbackTab = useCallback(
     (id: string) => {
@@ -1905,7 +1915,7 @@ ${lines
               className="size-[6px] rounded-full shrink-0 animate-pulse"
               style={{ background: "var(--info)" }}
             />
-            New client feedback received — review and accept or decline items to regenerate.
+            New client feedback received — review and decide what to incorporate.
           </span>
           <div className="flex items-center gap-2">
             {pendingFeedbackSnapshotId && (
@@ -1996,13 +2006,12 @@ ${lines
           selectedReqText={selectedReqText}
           onClearSelection={() => setSelectedReq(null)}
           onSendMessage={
-            !isDemo &&
-            sessionId &&
-            currentSnapshotId &&
-            effectiveDocumentType === "GENERATED_BRIEF"
+            !isDemo && sessionId && currentSnapshotId
               ? handleSendOrDiagram
               : undefined
           }
+          canChat={!isDemo && effectiveDocumentType === "GENERATED_BRIEF"}
+          canGenerateDiagrams={!isDemo && !!sessionId && !!currentSnapshotId}
           revising={revising}
           selectedDiagramType={selectedDiagramType}
           onClearDiagramType={() => {

@@ -7,6 +7,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     briefSnapshot: {
       findMany: vi.fn(),
+      findUnique: vi.fn(),
     },
     $transaction: vi.fn(),
   },
@@ -15,6 +16,7 @@ vi.mock("@/lib/prisma", () => ({
 vi.mock("@/server/services/google-genai", () => ({
   extractJson: (raw: string) => JSON.parse(raw),
   generateFinalizedDocumentFromBriefs: vi.fn(),
+  generateFinalizedDocumentRevision: vi.fn(),
   generateFinalizedDocumentStreamFromBriefs: vi.fn(),
 }));
 
@@ -22,9 +24,11 @@ import { prisma } from "@/lib/prisma";
 import {
   createFinalizedDocument,
   createFinalizedDocumentStream,
+  reviseFinalizedDocumentFromFeedback,
 } from "@/server/services/finalized-documents";
 import {
   generateFinalizedDocumentFromBriefs,
+  generateFinalizedDocumentRevision,
   generateFinalizedDocumentStreamFromBriefs,
 } from "@/server/services/google-genai";
 
@@ -34,12 +38,15 @@ const mockPrisma = prisma as unknown as {
   };
   briefSnapshot: {
     findMany: ReturnType<typeof vi.fn>;
+    findUnique: ReturnType<typeof vi.fn>;
   };
   $transaction: ReturnType<typeof vi.fn>;
 };
 
 const mockGenerateFinalizedDocumentFromBriefs =
   generateFinalizedDocumentFromBriefs as unknown as ReturnType<typeof vi.fn>;
+const mockGenerateFinalizedDocumentRevision =
+  generateFinalizedDocumentRevision as unknown as ReturnType<typeof vi.fn>;
 const mockGenerateFinalizedDocumentStreamFromBriefs =
   generateFinalizedDocumentStreamFromBriefs as unknown as ReturnType<
     typeof vi.fn
@@ -104,6 +111,17 @@ function createTx(finalizedMaxVersion = 1) {
     briefClaim: {
       createMany: vi.fn().mockResolvedValue({ count: 6 }),
     },
+    briefDiagram: {
+      findMany: vi.fn().mockResolvedValue([
+        {
+          diagramType: "FLOWCHART",
+          title: "Existing flow",
+          mermaidCode: "flowchart TD\nA-->B",
+          description: "Existing diagram",
+        },
+      ]),
+      createMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
     revisionEvent: {
       create: vi.fn().mockResolvedValue({ id: "revision_1" }),
     },
@@ -131,9 +149,29 @@ describe("createFinalizedDocument", () => {
       sourceBrief(3),
       sourceBrief(2),
     ]);
+    mockPrisma.briefSnapshot.findUnique.mockResolvedValue({
+      id: "finalized_1",
+      sessionId: "session_1",
+      version: 1,
+      documentType: "FINALIZED_DOCUMENT",
+      sourceBundleVersion: 4,
+      claims: [
+        {
+          section: "PROJECT_OVERVIEW",
+          text: "Current overview.",
+          confidence: "HIGH",
+        },
+        {
+          section: "FUNCTIONAL_REQUIREMENTS",
+          text: "Current requirement.",
+          confidence: "MEDIUM",
+        },
+      ],
+    });
     mockGenerateFinalizedDocumentFromBriefs.mockResolvedValue(
       finalizedOutput(),
     );
+    mockGenerateFinalizedDocumentRevision.mockResolvedValue(finalizedOutput());
   });
 
   it("uses the latest three generated briefs and creates a separate finalized version", async () => {
@@ -279,5 +317,118 @@ describe("createFinalizedDocument", () => {
         }),
       ]),
     });
+  });
+
+  it("revises a finalized document from accepted feedback and persists a new finalized version", async () => {
+    const tx = createTx(1);
+    mockPrisma.$transaction.mockImplementation(async (callback) =>
+      callback(tx),
+    );
+
+    const result = await reviseFinalizedDocumentFromFeedback({
+      sessionId: "session_1",
+      snapshotId: "finalized_1",
+      userMessage: "Incorporate accepted client comments.",
+      requestedBy: "user_1",
+    });
+
+    expect(mockPrisma.briefSnapshot.findUnique).toHaveBeenCalledWith({
+      where: { id: "finalized_1" },
+      select: expect.objectContaining({
+        id: true,
+        sessionId: true,
+        version: true,
+        documentType: true,
+        sourceBundleVersion: true,
+      }),
+    });
+    expect(mockGenerateFinalizedDocumentRevision).toHaveBeenCalledWith(
+      expect.stringContaining("PROJECT_OVERVIEW:"),
+      "Incorporate accepted client comments.",
+    );
+    expect(tx.briefSnapshot.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        sessionId: "session_1",
+        version: 2,
+        documentType: "FINALIZED_DOCUMENT",
+        sourceBundleVersion: 4,
+      }),
+    });
+    expect(tx.revisionEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: "REGENERATED",
+        summary: "Revised finalized document via feedback into v2.",
+        metadata: expect.objectContaining({
+          trigger: "feedback-review",
+          sourceSnapshotId: "finalized_1",
+          sourceSnapshotVersion: 1,
+        }),
+      }),
+    });
+    expect(tx.briefDiagram.findMany).toHaveBeenCalledWith({
+      where: { snapshotId: "finalized_1" },
+      select: {
+        diagramType: true,
+        title: true,
+        mermaidCode: true,
+        description: true,
+      },
+    });
+    expect(tx.briefDiagram.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          snapshotId: "finalized_2",
+          sessionId: "session_1",
+          diagramType: "FLOWCHART",
+        }),
+      ],
+    });
+    expect(result).toEqual({
+      snapshotId: "finalized_2",
+      version: 2,
+      documentType: "FINALIZED_DOCUMENT",
+    });
+  });
+
+  it("trims oversized finalized sections instead of failing generation", async () => {
+    const tx = createTx(1);
+    mockPrisma.$transaction.mockImplementation(async (callback) =>
+      callback(tx),
+    );
+
+    const makeItem = (i: number) => ({
+      text: `Item ${i}`,
+      confidence: "HIGH" as const,
+      evidence: [],
+    });
+
+    mockGenerateFinalizedDocumentFromBriefs.mockResolvedValueOnce({
+      projectOverview: Array.from({ length: 13 }, (_, i) => makeItem(i)),
+      projectGoals: [makeItem(1)],
+      mainFeatures: [makeItem(1)],
+      functionalRequirements: Array.from({ length: 25 }, (_, i) => makeItem(i)),
+      nonFunctionalRequirements: Array.from({ length: 17 }, (_, i) =>
+        makeItem(i),
+      ),
+      userFlows: [makeItem(1)],
+    });
+
+    await createFinalizedDocument({
+      sessionId: "session_1",
+      requestedBy: "user_1",
+    });
+
+    const createManyArg = tx.briefClaim.createMany.mock.calls[0]?.[0];
+    const rows = createManyArg.data as Array<{ section: string }>;
+    expect(
+      rows.filter((row) => row.section === "PROJECT_OVERVIEW").length,
+    ).toBe(12);
+    expect(
+      rows.filter((row) => row.section === "FUNCTIONAL_REQUIREMENTS").length,
+    ).toBe(24);
+    expect(
+      rows.filter((row) => row.section === "NON_FUNCTIONAL_REQUIREMENTS")
+        .length,
+    ).toBe(16);
   });
 });

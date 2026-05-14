@@ -67,6 +67,7 @@ export interface WorkspaceFeedbackTab {
   id: string;
   snapshotId: string;
   label: string;
+  documentType?: "GENERATED_BRIEF" | "FINALIZED_DOCUMENT" | null;
 }
 
 const STATUS_TONE: Record<string, Tone> = {
@@ -783,6 +784,8 @@ interface ChatBarProps {
   selectedReqText?: string | null;
   onClearSelection?: () => void;
   onSendMessage?: (msg: string, selectionText?: string) => Promise<void>;
+  canChat?: boolean;
+  canGenerateDiagrams?: boolean;
   revising?: boolean;
   selectedDiagramType?: string | null;
   onClearDiagramType?: () => void;
@@ -803,6 +806,8 @@ function ChatBar({
   selectedReqText,
   onClearSelection,
   onSendMessage,
+  canChat = false,
+  canGenerateDiagrams = false,
   revising,
   selectedDiagramType,
   onClearDiagramType,
@@ -817,6 +822,7 @@ function ChatBar({
   async function handleSend() {
     const trimmed = value.trim();
     if (sending || revising || !onSendMessage) return;
+    if (!canChat && !selectedDiagramType) return;
     if (!trimmed && !selectedDiagramType) return;
     setSending(true);
     try {
@@ -836,6 +842,12 @@ function ChatBar({
   }
 
   const isDisabled = sending || revising || !onSendMessage;
+  const inputDisabled = isDisabled || (!canChat && !selectedDiagramType);
+  const toolsDisabled = isDisabled || !canGenerateDiagrams;
+  const sendDisabled =
+    isDisabled ||
+    (!selectedDiagramType && !canChat) ||
+    (!value.trim() && !selectedDiagramType);
 
   return (
     <div
@@ -942,11 +954,13 @@ function ChatBar({
               ? "Revising brief…"
               : selectedDiagramType
                 ? "Describe any context for this diagram…"
-                : onSendMessage
+                : canChat
                   ? "Ask about requirements, request changes…"
-                  : "Generate a brief first to start chatting"
+                  : canGenerateDiagrams
+                    ? "Select a tool to generate a diagram"
+                    : "Generate a brief first to start chatting"
           }
-          disabled={isDisabled}
+          disabled={inputDisabled}
           className="w-full bg-transparent text-[13px] px-4 pt-3 pb-2 focus-visible:outline-none disabled:opacity-50"
           style={{ color: "var(--fg-primary)" }}
           autoComplete="off"
@@ -956,7 +970,7 @@ function ChatBar({
         <div className="flex items-center justify-between px-3 pb-2.5">
           <div className="flex items-center gap-1">
             <ToolsPopover
-              disabled={isDisabled}
+              disabled={toolsDisabled}
               onSelectDiagramType={(type) => {
                 onSelectDiagramType?.(type);
               }}
@@ -992,7 +1006,7 @@ function ChatBar({
             <IconButton
               label="Send message"
               onClick={() => void handleSend()}
-              disabled={isDisabled || (!value.trim() && !selectedDiagramType)}
+              disabled={sendDisabled}
             >
               {sending || revising ? (
                 <Icons.Download size={13} className="animate-spin" />
@@ -1047,6 +1061,8 @@ export interface DocViewProps {
   selectedReqText?: string | null;
   onClearSelection?: () => void;
   onSendMessage?: (msg: string, selectionText?: string) => Promise<void>;
+  canChat?: boolean;
+  canGenerateDiagrams?: boolean;
   revising?: boolean;
   selectedDiagramType?: string | null;
   onClearDiagramType?: () => void;
@@ -1100,6 +1116,8 @@ export function DocView({
   selectedReqText,
   onClearSelection,
   onSendMessage,
+  canChat = false,
+  canGenerateDiagrams = false,
   revising = false,
   onUpdateLine,
   onInsertLineAfter,
@@ -1206,18 +1224,18 @@ export function DocView({
     >
       {/* Topbar */}
       <div
-        className="flex items-center h-8 px-4 gap-3 shrink-0 border-b"
+        className="flex items-center flex-wrap min-h-8 px-4 py-1 gap-x-3 gap-y-1 shrink-0 border-b"
         style={{ background: "var(--surface-1)", borderColor: "var(--border)" }}
       >
         {/* Breadcrumbs */}
         <div
-          className="flex items-center gap-1 text-[12px] flex-1 min-w-0"
+          className="flex items-center gap-1 text-[12px] flex-1 basis-[220px] min-w-0"
           style={{ color: "var(--fg-tertiary)" }}
         >
           {projectName && (
             <>
               <span
-                className="truncate shrink-0 max-w-[180px] font-medium"
+                className="min-w-0 shrink truncate max-w-[180px] font-medium"
                 style={{ color: "var(--fg-secondary)" }}
               >
                 {projectName}
@@ -1233,6 +1251,7 @@ export function DocView({
           )}
           {displayedVersionLabel && (
             <span
+              className="min-w-0 truncate"
               style={{
                 fontFamily: "var(--font-mono)",
                 color: "var(--accent)",
@@ -1245,10 +1264,10 @@ export function DocView({
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0 max-w-full flex-wrap justify-end">
           {filterOpen ? (
             <div
-              className="flex items-center gap-1 h-[22px] px-1.5 rounded-[4px] border"
+              className="flex items-center gap-1 h-[22px] px-1.5 rounded-[4px] border max-w-full"
               style={{
                 background: "var(--surface-2)",
                 borderColor: "var(--border-strong)",
@@ -1267,7 +1286,7 @@ export function DocView({
                   if (e.key === "Escape") closeFilter();
                 }}
                 placeholder="Filter requirements…"
-                className="w-[160px] bg-transparent text-[11px] focus-visible:outline-none"
+                className="w-[120px] sm:w-[160px] min-w-0 bg-transparent text-[11px] focus-visible:outline-none"
                 style={{ color: "var(--fg-primary)" }}
                 aria-label="Filter requirements"
               />
@@ -1645,6 +1664,8 @@ export function DocView({
           selectedReqText={selectedReqText}
           onClearSelection={onClearSelection}
           onSendMessage={onSendMessage}
+          canChat={canChat}
+          canGenerateDiagrams={canGenerateDiagrams}
           revising={revising}
           selectedDiagramType={selectedDiagramType}
           onClearDiagramType={onClearDiagramType}

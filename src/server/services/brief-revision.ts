@@ -11,11 +11,11 @@ import {
 } from "@/server/services/brief-pipeline";
 import {
   extractJson,
+  normalizeBriefOutput,
   reviseBriefFromBundle,
   reviseBriefStreamFromBundle,
 } from "@/server/services/google-genai";
 import { processSessionFileSources } from "@/server/services/source-processing";
-import { BriefOutputSchema } from "@/server/validators/brief-output";
 
 export { BriefPipelineError };
 
@@ -278,7 +278,7 @@ export async function* runBriefRevisionStream(
 
     let output;
     try {
-      output = BriefOutputSchema.parse(extractJson(fullText));
+      output = normalizeBriefOutput(extractJson(fullText));
     } catch (parseError) {
       const hint = pipelineErrorFromUnknown(parseError).message;
       try {

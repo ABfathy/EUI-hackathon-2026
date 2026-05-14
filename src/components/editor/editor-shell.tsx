@@ -25,6 +25,10 @@ import { ResizeHandle } from "./resize-handle";
 import { RightPane, type SourceItem, type SourceType } from "./right-pane";
 import { ShareModal } from "./share-modal";
 import { SourcePreviewModal } from "./source-preview-modal";
+import {
+  makeStreamingPhaseHeaderLines,
+  updateStreamingPhaseHeader,
+} from "./streaming-phase";
 import { StatusBar } from "./statusbar";
 import { TitleBar } from "./titlebar";
 
@@ -787,24 +791,13 @@ export function EditorShell({
       "Drafting brief…",
     ];
     let phaseIdx = 0;
-    const makeHeaderLines = (phaseLabel: string): DocLineData[] => {
-      return [
-        { lineNum: 1, type: "meta", text: phaseLabel, small: true },
-        { lineNum: 0, type: "blank" },
-      ];
-    };
-    const initialHeader = makeHeaderLines(PHASE_LABELS[0]!);
+    const initialHeader = makeStreamingPhaseHeaderLines(PHASE_LABELS[0]!);
     setStreamingLines(initialHeader);
 
     const phaseInterval = setInterval(() => {
       phaseIdx = Math.min(phaseIdx + 1, PHASE_LABELS.length - 1);
-      const nextLabel = PHASE_LABELS[phaseIdx];
-      setStreamingLines((prev) => {
-        if (!prev || prev.length < 3) return prev;
-        const updated = [...prev];
-        updated[2] = { lineNum: 2, type: "meta", text: nextLabel, small: true };
-        return updated;
-      });
+      const nextLabel = PHASE_LABELS[phaseIdx]!;
+      setStreamingLines((prev) => updateStreamingPhaseHeader(prev, nextLabel));
     }, 3000);
 
     try {
@@ -840,7 +833,7 @@ export function EditorShell({
               lineNum: l.lineNum > 0 ? l.lineNum + lineOffset : 0,
             }))
           : parserLines;
-        const header = makeHeaderLines("Drafting brief…");
+        const header = makeStreamingPhaseHeaderLines("Drafting brief…");
         setStreamingLines([...header, ...shifted]);
       };
 
@@ -905,32 +898,13 @@ export function EditorShell({
       "Drafting finalized document…",
     ];
     let phaseIdx = 0;
-    const makeHeaderLines = (phaseLabel: string): DocLineData[] => [
-      {
-        lineNum: 1,
-        type: "meta",
-        text: phaseLabel,
-        small: true,
-      },
-      { lineNum: 0, type: "blank" },
-    ];
-    const initialHeader = makeHeaderLines(PHASE_LABELS[0]!);
+    const initialHeader = makeStreamingPhaseHeaderLines(PHASE_LABELS[0]!);
     setStreamingLines(initialHeader);
 
     const phaseInterval = setInterval(() => {
       phaseIdx = Math.min(phaseIdx + 1, PHASE_LABELS.length - 1);
-      const nextLabel = PHASE_LABELS[phaseIdx];
-      setStreamingLines((prev) => {
-        if (!prev || prev.length < 1) return prev;
-        const updated = [...prev];
-        updated[0] = {
-          lineNum: 1,
-          type: "meta",
-          text: nextLabel,
-          small: true,
-        };
-        return updated;
-      });
+      const nextLabel = PHASE_LABELS[phaseIdx]!;
+      setStreamingLines((prev) => updateStreamingPhaseHeader(prev, nextLabel));
     }, 3000);
 
     try {
@@ -973,7 +947,7 @@ export function EditorShell({
           lineNum: line.lineNum > 0 ? line.lineNum + lineOffset : 0,
         }));
         setStreamingLines([
-          ...makeHeaderLines("Drafting finalized document…"),
+          ...makeStreamingPhaseHeaderLines("Drafting finalized document…"),
           ...shifted,
         ]);
       };

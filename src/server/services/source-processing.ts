@@ -388,27 +388,23 @@ export async function processSessionFileSources(input: {
   requestedBy: string;
 }) {
   const sources = await loadProcessableFileSources(input.sessionId);
-  const results: SourceProcessingResult[] = [];
+  const results = await Promise.all(
+    sources.map((source) => {
+      if (source.sourceType === "PDF") {
+        return processPdfAsset({
+          assetId: source.id,
+          sessionId: input.sessionId,
+          requestedBy: input.requestedBy,
+        });
+      }
 
-  for (const source of sources) {
-    if (source.sourceType === "PDF") {
-      results.push(
-        await processPdfAsset({
-          assetId: source.id,
-          sessionId: input.sessionId,
-          requestedBy: input.requestedBy,
-        }),
-      );
-    } else if (source.sourceType === "AUDIO") {
-      results.push(
-        await processAudioAsset({
-          assetId: source.id,
-          sessionId: input.sessionId,
-          requestedBy: input.requestedBy,
-        }),
-      );
-    }
-  }
+      return processAudioAsset({
+        assetId: source.id,
+        sessionId: input.sessionId,
+        requestedBy: input.requestedBy,
+      });
+    }),
+  );
 
   logSourceProcessing("info", "Completed session file source processing.", {
     sessionId: input.sessionId,

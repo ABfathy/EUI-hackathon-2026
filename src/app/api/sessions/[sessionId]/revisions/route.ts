@@ -45,13 +45,13 @@ export async function GET(
       commentIds.length > 0
         ? prisma.briefComment.findMany({
           where: { id: { in: commentIds } },
-          select: { id: true, body: true, authorName: true },
+          select: { id: true, body: true, authorName: true, reviewStatus: true },
         })
         : [],
       answerIds.length > 0
         ? prisma.followUpAnswer.findMany({
           where: { id: { in: answerIds } },
-          select: { id: true, body: true, authorName: true },
+          select: { id: true, body: true, authorName: true, reviewStatus: true },
         })
         : [],
     ]);
@@ -64,17 +64,27 @@ export async function GET(
       let feedbackBody: string | null = null;
       let feedbackAuthor: string | null = null;
 
+      let feedbackReviewStatus: string | null = null;
+      let feedbackItemId: string | null = null;
+      let feedbackItemType: "comment" | "answer" | null = null;
+
       if (evt.type === "CLIENT_COMMENT_ADDED" && typeof meta.commentId === "string") {
         const c = commentMap.get(meta.commentId);
         if (c) {
           feedbackBody = c.body;
           feedbackAuthor = c.authorName;
+          feedbackReviewStatus = c.reviewStatus;
+          feedbackItemId = c.id;
+          feedbackItemType = "comment";
         }
       } else if (evt.type === "CLIENT_ANSWER_ADDED" && typeof meta.answerId === "string") {
         const a = answerMap.get(meta.answerId);
         if (a) {
           feedbackBody = a.body;
           feedbackAuthor = a.authorName;
+          feedbackReviewStatus = a.reviewStatus;
+          feedbackItemId = a.id;
+          feedbackItemType = "answer";
         }
       }
 
@@ -92,6 +102,9 @@ export async function GET(
         selectionText: typeof meta.selectionText === "string" ? meta.selectionText : null,
         feedbackBody,
         feedbackAuthor,
+        feedbackReviewStatus,
+        feedbackItemId,
+        feedbackItemType,
       };
     });
 

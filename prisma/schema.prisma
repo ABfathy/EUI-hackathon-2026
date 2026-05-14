@@ -205,6 +205,7 @@ model BriefComment {
   authorEmail   String?
   body          String                 @db.Text
   status        BriefCommentStatus     @default(OPEN)
+  reviewStatus  FeedbackReviewStatus   @default(PENDING)
   createdAt     DateTime               @default(now())
   updatedAt     DateTime               @updatedAt
   snapshot      BriefSnapshot          @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
@@ -220,12 +221,13 @@ model FollowUpAnswer {
   snapshotId  String        @db.Uuid
   questionId  String        @db.Uuid
   body        String        @db.Text
-  authorName  String?
-  authorEmail String?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  snapshot    BriefSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
-  question    BriefQuestion @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  authorName   String?
+  authorEmail  String?
+  reviewStatus FeedbackReviewStatus @default(PENDING)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  snapshot     BriefSnapshot        @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  question     BriefQuestion        @relation(fields: [questionId], references: [id], onDelete: Restrict)
 
   @@index([snapshotId, createdAt])
   @@index([questionId, createdAt])
@@ -366,6 +368,12 @@ enum BriefCommentStatus {
   OPEN
   ACKNOWLEDGED
   RESOLVED
+}
+
+enum FeedbackReviewStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
 }
 
 enum RevisionEventType {

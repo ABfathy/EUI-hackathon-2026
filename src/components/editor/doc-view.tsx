@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 
+import { FeedbackTab } from "@/components/editor/feedback-tab";
 import { Icons } from "@/components/icons";
 import { IconButton } from "@/components/ui/icon-button";
 import { Pill } from "@/components/ui/pill";
@@ -56,6 +57,12 @@ export interface DocLineData {
 export interface WorkspaceComparisonTab {
   id: string;
   title: string;
+}
+
+export interface WorkspaceFeedbackTab {
+  id: string;
+  snapshotId: string;
+  label: string;
 }
 
 const STATUS_TONE: Record<string, Tone> = {
@@ -927,12 +934,16 @@ export interface DocViewProps {
   viewingVersion?: number | null;
   onExitVersionView?: () => void;
   comparisonTabs?: WorkspaceComparisonTab[];
+  feedbackTabs?: WorkspaceFeedbackTab[];
   activeWorkspaceTab?: string;
   activeComparisonContent?: ReactNode;
   onSelectWorkspaceTab?: (id: string) => void;
   onCloseComparisonTab?: (id: string) => void;
+  onCloseFeedbackTab?: (id: string) => void;
+  sessionId?: string | null;
   snapshotId?: string | null;
   onShareBrief?: () => void;
+  onRegenerateStarted?: () => void;
 }
 
 export function DocView({
@@ -962,11 +973,15 @@ export function DocView({
   viewingVersion = null,
   onExitVersionView,
   comparisonTabs = [],
+  feedbackTabs = [],
   activeWorkspaceTab = "draft",
   activeComparisonContent,
   onSelectWorkspaceTab,
   onCloseComparisonTab,
+  onCloseFeedbackTab,
+  sessionId,
   snapshotId,
+  onRegenerateStarted,
   onShareBrief,
 }: DocViewProps) {
   const [filterOpen, setFilterOpen] = useState(false);
@@ -997,6 +1012,8 @@ export function DocView({
     !onGenerateBrief;
   const showingComparison =
     activeWorkspaceTab !== "draft" && activeComparisonContent;
+  const activeFeedbackTab = feedbackTabs.find((t) => t.id === activeWorkspaceTab) ?? null;
+  const showingFeedback = activeFeedbackTab !== null;
 
   return (
     <div
@@ -1121,87 +1138,128 @@ export function DocView({
         </div>
       </div>
 
-      {comparisonTabs.length > 0 && (
-        <div
-          className="flex items-center h-8 px-2 shrink-0 border-b gap-1 overflow-x-auto"
-          style={{
-            background: "var(--surface-1)",
-            borderColor: "var(--border)",
-          }}
-          role="tablist"
-          aria-label="Workspace tabs"
+      <div
+        className="flex items-center h-8 px-2 shrink-0 border-b gap-1 overflow-x-auto"
+        style={{
+          background: "var(--surface-1)",
+          borderColor: "var(--border)",
+        }}
+        role="tablist"
+        aria-label="Workspace tabs"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeWorkspaceTab === "draft"}
+          onClick={() => onSelectWorkspaceTab?.("draft")}
+          className="inline-flex items-center h-[24px] px-2 rounded-[4px] text-[11px] font-medium border transition-colors duration-[120ms] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
+          style={
+            activeWorkspaceTab === "draft"
+              ? {
+                background: "var(--surface-3)",
+                borderColor: "var(--border-strong)",
+                color: "var(--fg-primary)",
+              }
+              : {
+                background: "transparent",
+                borderColor: "transparent",
+                color: "var(--fg-tertiary)",
+              }
+          }
         >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeWorkspaceTab === "draft"}
-            onClick={() => onSelectWorkspaceTab?.("draft")}
-            className="inline-flex items-center h-[24px] px-2 rounded-[4px] text-[11px] font-medium border transition-colors duration-[120ms] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
-            style={
-              activeWorkspaceTab === "draft"
-                ? {
-                  background: "var(--surface-3)",
-                  borderColor: "var(--border-strong)",
-                  color: "var(--fg-primary)",
-                }
-                : {
-                  background: "transparent",
-                  borderColor: "transparent",
-                  color: "var(--fg-tertiary)",
-                }
-            }
-          >
-            Draft
-          </button>
-          {comparisonTabs.map((tab) => {
-            const active = activeWorkspaceTab === tab.id;
-            return (
-              <div
-                key={tab.id}
-                className="group inline-flex items-center h-[24px] max-w-[260px] rounded-[4px] text-[11px] font-medium border transition-colors duration-[120ms]"
-                style={
-                  active
-                    ? {
-                      background: "var(--surface-3)",
-                      borderColor: "var(--border-strong)",
-                      color: "var(--fg-primary)",
-                    }
-                    : {
-                      background: "transparent",
-                      borderColor: "transparent",
-                      color: "var(--fg-tertiary)",
-                    }
-                }
+          Draft
+        </button>
+        {feedbackTabs.map((tab) => {
+          const active = activeWorkspaceTab === tab.id;
+          return (
+            <div
+              key={tab.id}
+              className="group inline-flex items-center h-[24px] max-w-[260px] rounded-[4px] text-[11px] font-medium border transition-colors duration-[120ms]"
+              style={
+                active
+                  ? {
+                    background: "var(--surface-3)",
+                    borderColor: "var(--border-strong)",
+                    color: "var(--fg-primary)",
+                  }
+                  : {
+                    background: "transparent",
+                    borderColor: "transparent",
+                    color: "var(--fg-tertiary)",
+                  }
+              }
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => onSelectWorkspaceTab?.(tab.id)}
+                className="inline-flex items-center gap-1 h-full min-w-0 px-2 rounded-l-[4px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
+                style={{ color: "inherit" }}
               >
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => onSelectWorkspaceTab?.(tab.id)}
-                  className="inline-flex items-center gap-1 h-full min-w-0 px-2 rounded-l-[4px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
-                  style={{ color: "inherit" }}
-                >
-                  <Icons.GitCompare
-                    size={11}
-                    aria-hidden="true"
-                    className="shrink-0"
-                  />
-                  <span className="truncate">{tab.title}</span>
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Close ${tab.title}`}
-                  onClick={() => onCloseComparisonTab?.(tab.id)}
-                  className="inline-flex items-center justify-center size-[20px] mr-0.5 rounded-[3px] opacity-70 transition-opacity duration-[120ms] hover:opacity-100 hover:bg-[var(--surface-2)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
-                  style={{ color: "var(--fg-muted)" }}
-                >
-                  <Icons.X size={9} aria-hidden="true" />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      )}
+                <Icons.MessageSquare size={11} aria-hidden="true" className="shrink-0" />
+                <span className="truncate">{tab.label}</span>
+              </button>
+              <button
+                type="button"
+                aria-label={`Close ${tab.label}`}
+                onClick={() => onCloseFeedbackTab?.(tab.id)}
+                className="inline-flex items-center justify-center size-[20px] mr-0.5 rounded-[3px] opacity-70 transition-opacity duration-[120ms] hover:opacity-100 hover:bg-[var(--surface-2)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
+                style={{ color: "var(--fg-muted)" }}
+              >
+                <Icons.X size={9} aria-hidden="true" />
+              </button>
+            </div>
+          );
+        })}
+        {comparisonTabs.map((tab) => {
+          const active = activeWorkspaceTab === tab.id;
+          return (
+            <div
+              key={tab.id}
+              className="group inline-flex items-center h-[24px] max-w-[260px] rounded-[4px] text-[11px] font-medium border transition-colors duration-[120ms]"
+              style={
+                active
+                  ? {
+                    background: "var(--surface-3)",
+                    borderColor: "var(--border-strong)",
+                    color: "var(--fg-primary)",
+                  }
+                  : {
+                    background: "transparent",
+                    borderColor: "transparent",
+                    color: "var(--fg-tertiary)",
+                  }
+              }
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => onSelectWorkspaceTab?.(tab.id)}
+                className="inline-flex items-center gap-1 h-full min-w-0 px-2 rounded-l-[4px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
+                style={{ color: "inherit" }}
+              >
+                <Icons.GitCompare
+                  size={11}
+                  aria-hidden="true"
+                  className="shrink-0"
+                />
+                <span className="truncate">{tab.title}</span>
+              </button>
+              <button
+                type="button"
+                aria-label={`Close ${tab.title}`}
+                onClick={() => onCloseComparisonTab?.(tab.id)}
+                className="inline-flex items-center justify-center size-[20px] mr-0.5 rounded-[3px] opacity-70 transition-opacity duration-[120ms] hover:opacity-100 hover:bg-[var(--surface-2)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-ring)] cursor-pointer"
+                style={{ color: "var(--fg-muted)" }}
+              >
+                <Icons.X size={9} aria-hidden="true" />
+              </button>
+            </div>
+          );
+        })}
+      </div>
 
       {/* Past-version banner */}
       {viewingVersion !== null && !showingComparison && (
@@ -1232,7 +1290,17 @@ export function DocView({
       )}
 
       {/* Doc scroll */}
-      <div className="flex-1 overflow-y-auto py-4">
+      <div className="flex-1 overflow-hidden flex flex-col">
+        {showingFeedback && activeFeedbackTab && sessionId ? (
+          <FeedbackTab
+            sessionId={sessionId}
+            snapshotId={activeFeedbackTab.snapshotId}
+            onRegenerateStarted={() => {
+              onRegenerateStarted?.();
+              onSelectWorkspaceTab?.("draft");
+            }}
+          />
+        ) : (<div className="flex-1 overflow-y-auto py-4">
         {showingComparison ? (
           activeComparisonContent
         ) : streamingLines && streamingLines.length > 0 ? (
@@ -1272,10 +1340,12 @@ export function DocView({
             />
           ))
         )}
+        </div>
+        )}
       </div>
 
       {/* Chat bar */}
-      {!showingComparison && (
+      {!showingComparison && !showingFeedback && (
         <ChatBar
           onAttachFiles={onAttachFiles}
           selectedReqText={selectedReqText}

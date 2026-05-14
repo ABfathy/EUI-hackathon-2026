@@ -47,6 +47,15 @@ export interface SnapshotSummary {
   userMessage: string | null;
   feedbackBody?: string | null;
   feedbackAuthor?: string | null;
+  feedbackReviewStatus?: string | null;
+  feedbackItemId?: string | null;
+  feedbackItemType?: "comment" | "answer" | null;
+}
+
+interface WorkspaceFeedbackTab {
+  id: string;
+  snapshotId: string;
+  label: string;
 }
 
 type SessionRef = { id: string; title: string } | null;
@@ -269,7 +278,10 @@ export function EditorShell({
   const jobPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const feedbackPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastFeedbackCountRef = useRef(0);
+  const seenEventIdsRef = useRef<Set<string>>(new Set());
   const [newFeedbackCount, setNewFeedbackCount] = useState(0);
+  const [hasPendingFeedback, setHasPendingFeedback] = useState(false);
+  const [pendingFeedbackSnapshotId, setPendingFeedbackSnapshotId] = useState<string | null>(null);
   const shouldPollFeedbackRef = useRef(false);
   const latestSnapshotIdRef = useRef<string | null>(initialSnapshotId ?? null);
   const [streamingLines, setStreamingLines] = useState<DocLineData[] | null>(null);
@@ -283,6 +295,7 @@ export function EditorShell({
   const [clientLines, setClientLines] = useState<DocLineData[] | null>(null);
   const [pendingFocusClaimId, setPendingFocusClaimId] = useState<string | null>(null);
   const [comparisonTabs, setComparisonTabs] = useState<ComparisonTab[]>([]);
+  const [feedbackTabs, setFeedbackTabs] = useState<WorkspaceFeedbackTab[]>([]);
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState(DRAFT_TAB_ID);
 
   const [activeProjectId, setActiveProjectId] = useState<string | null>(
@@ -490,6 +503,9 @@ export function EditorShell({
           selectionText: string | null;
           feedbackBody: string | null;
           feedbackAuthor: string | null;
+          feedbackReviewStatus: string | null;
+          feedbackItemId: string | null;
+          feedbackItemType: "comment" | "answer" | null;
         }>;
       };
       const allRevisions = data.revisions ?? [];
@@ -523,6 +539,9 @@ export function EditorShell({
           userMessage: r.userMessage,
           feedbackBody: r.feedbackBody,
           feedbackAuthor: r.feedbackAuthor,
+          feedbackReviewStatus: r.feedbackReviewStatus,
+          feedbackItemId: r.feedbackItemId,
+          feedbackItemType: r.feedbackItemType,
         })),
       );
 
@@ -534,16 +553,36 @@ export function EditorShell({
         latestSnapshotIdRef.current = latestGenerated.snapshotId;
       }
 
-      // Detect new client activity since last load (BRIEF_CONFIRMED triggers auto-revise)
-      const feedbackCount = allRevisions.filter(
-        (r) =>
-          r.type === "CLIENT_COMMENT_ADDED" ||
-          r.type === "CLIENT_ANSWER_ADDED" ||
-          r.type === "BRIEF_CONFIRMED",
-      ).length;
-      if (feedbackCount > lastFeedbackCountRef.current) {
-        setNewFeedbackCount((prev) => prev + (feedbackCount - lastFeedbackCountRef.current));
+      // Detect new client feedback events
+      const feedbackIds = new Set(
+        allRevisions
+          .filter(
+            (r) =>
+              r.type === "CLIENT_COMMENT_ADDED" ||
+              r.type === "CLIENT_ANSWER_ADDED" ||
+              r.type === "BRIEF_CONFIRMED",
+          )
+          .map((r) => r.id),
+      );
+
+      const isFirstLoad = seenEventIdsRef.current.size === 0;
+      const newFeedback = [...feedbackIds].filter((id) => !seenEventIdsRef.current.has(id));
+
+      if (isFirstLoad) {
+        // Initialize seen IDs without showing notification
+        for (const id of feedbackIds) seenEventIdsRef.current.add(id);
+      } else if (newFeedback.length > 0) {
+        for (const id of newFeedback) seenEventIdsRef.current.add(id);
+        // Find latest confirmed snapshot to open feedback tab for
+        const latestConfirmed = [...allRevisions]
+          .reverse()
+          .find((r) => r.type === "BRIEF_CONFIRMED" && r.snapshotId);
+        setPendingFeedbackSnapshotId(latestConfirmed?.snapshotId ?? null);
+        setHasPendingFeedback(true);
+        setNewFeedbackCount((prev) => prev + newFeedback.length);
       }
+
+      const feedbackCount = feedbackIds.size;
       lastFeedbackCountRef.current = feedbackCount;
     } catch {
       // silently fail — not critical
@@ -766,7 +805,10 @@ export function EditorShell({
   // Reset feedback badge and counter when session changes
   useEffect(() => {
     lastFeedbackCountRef.current = 0;
+    seenEventIdsRef.current = new Set();
     setNewFeedbackCount(0);
+    setHasPendingFeedback(false);
+    setPendingFeedbackSnapshotId(null);
     shouldPollFeedbackRef.current = false;
   }, [sessionId]);
 
@@ -880,6 +922,28 @@ export function EditorShell({
         const next = prev.filter((tab) => tab.id !== id);
         if (activeWorkspaceTab === id) {
           setActiveWorkspaceTab(next[next.length - 1]?.id ?? DRAFT_TAB_ID);
+        }
+        return next;
+      });
+    },
+    [activeWorkspaceTab],
+  );
+
+  const handleOpenFeedbackTab = useCallback((snapshotId: string) => {
+    const id = `feedback-${snapshotId}`;
+    setFeedbackTabs((prev) => {
+      if (prev.find((t) => t.id === id)) return prev;
+      return [...prev, { id, snapshotId, label: "Feedback" }];
+    });
+    setActiveWorkspaceTab(id);
+  }, []);
+
+  const handleCloseFeedbackTab = useCallback(
+    (id: string) => {
+      setFeedbackTabs((prev) => {
+        const next = prev.filter((t) => t.id !== id);
+        if (activeWorkspaceTab === id) {
+          setActiveWorkspaceTab(DRAFT_TAB_ID);
         }
         return next;
       });
@@ -1002,6 +1066,7 @@ export function EditorShell({
         setChatMessages([]);
         setSnapshots([]);
         setComparisonTabs([]);
+        setFeedbackTabs([]);
         setActiveWorkspaceTab(DRAFT_TAB_ID);
         if (typeof window !== "undefined") {
           window.history.replaceState({}, "", `/app?projectId=${id}`);
@@ -1274,6 +1339,7 @@ ${lines.map((l) => {
     setClientLines(null);
     setChatMessages([]);
     setComparisonTabs([]);
+    setFeedbackTabs([]);
     setActiveWorkspaceTab(DRAFT_TAB_ID);
   }, [sessionId]);
 
@@ -1300,6 +1366,55 @@ ${lines.map((l) => {
         onToggleTheme={toggleTheme}
         onOpenPalette={() => setPaletteOpen(true)}
       />
+
+      {/* New-feedback notification banner */}
+      {hasPendingFeedback && (
+        <div
+          className="flex items-center justify-between px-4 py-2 shrink-0 text-[12px]"
+          style={{
+            background: "color-mix(in srgb, var(--info) 12%, var(--surface-1))",
+            borderBottom: "1px solid color-mix(in srgb, var(--info) 30%, transparent)",
+            color: "var(--fg-secondary)",
+          }}
+          role="status"
+          aria-live="polite"
+        >
+          <span className="flex items-center gap-2">
+            <span
+              className="size-[6px] rounded-full shrink-0 animate-pulse"
+              style={{ background: "var(--info)" }}
+            />
+            New client feedback received — review and accept or decline items to regenerate.
+          </span>
+          <div className="flex items-center gap-2">
+            {pendingFeedbackSnapshotId && (
+              <button
+                type="button"
+                onClick={() => {
+                  handleOpenFeedbackTab(pendingFeedbackSnapshotId);
+                  setHasPendingFeedback(false);
+                }}
+                className="text-[11px] font-medium px-2 py-0.5 rounded transition-colors cursor-pointer"
+                style={{
+                  background: "var(--info)",
+                  color: "#fff",
+                }}
+              >
+                Review Feedback
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setHasPendingFeedback(false)}
+              className="text-[11px] opacity-60 hover:opacity-100 transition-opacity cursor-pointer"
+              style={{ color: "var(--fg-muted)" }}
+              aria-label="Dismiss notification"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
 
       <div
         className="flex-1 overflow-hidden"
@@ -1368,10 +1483,16 @@ ${lines.map((l) => {
             id: tab.id,
             title: tab.title,
           }))}
+          feedbackTabs={feedbackTabs}
           activeWorkspaceTab={activeWorkspaceTab}
           activeComparisonContent={activeComparisonContent}
           onSelectWorkspaceTab={setActiveWorkspaceTab}
           onCloseComparisonTab={handleCloseComparisonTab}
+          onCloseFeedbackTab={handleCloseFeedbackTab}
+          sessionId={session?.id}
+          onRegenerateStarted={() => {
+            if (sessionId) void loadRevisions(sessionId);
+          }}
           onOpenSource={(id) => {
             const s = sources.find((src) => src.id === id);
             if (s) setPreviewItem(s);
@@ -1413,6 +1534,7 @@ ${lines.map((l) => {
               onCompareSnapshots={handleOpenComparison}
               newFeedbackCount={newFeedbackCount}
               onClearFeedbackBadge={() => setNewFeedbackCount(0)}
+              onOpenFeedbackTab={handleOpenFeedbackTab}
             />
           )}
         </div>

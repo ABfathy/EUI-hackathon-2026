@@ -1123,6 +1123,8 @@ export function DocView({
   const [filterOpen, setFilterOpen] = useState(false);
   const [filterQuery, setFilterQuery] = useState("");
   const filterInputRef = useRef<HTMLInputElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const shouldStickToBottomRef = useRef(true);
   // Singleton edit guard: at most one DocLine can be in edit mode at a time.
   // Storing the reqId (instead of a boolean) lets us derive isEditing per-row
   // without any per-row state mutation.
@@ -1131,6 +1133,22 @@ export function DocView({
   useEffect(() => {
     if (filterOpen) filterInputRef.current?.focus();
   }, [filterOpen]);
+
+  const hasStreamingContent = !!streamingLines && streamingLines.length > 0;
+
+  useEffect(() => {
+    if (!hasStreamingContent) {
+      shouldStickToBottomRef.current = true;
+    }
+  }, [hasStreamingContent]);
+
+  useEffect(() => {
+    const scroller = scrollRef.current;
+    if (!scroller || !hasStreamingContent) return;
+    if (!shouldStickToBottomRef.current) return;
+
+    scroller.scrollTop = scroller.scrollHeight;
+  }, [hasStreamingContent, streamingLines]);
 
   function closeFilter() {
     setFilterOpen(false);
@@ -1494,7 +1512,17 @@ export function DocView({
       )}
 
       {/* Doc scroll */}
-      <div className="flex-1 overflow-y-auto py-4">
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto py-4"
+        onScroll={() => {
+          const scroller = scrollRef.current;
+          if (!scroller || !hasStreamingContent) return;
+          const distanceFromBottom =
+            scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight;
+          shouldStickToBottomRef.current = distanceFromBottom <= 48;
+        }}
+      >
         {showingFeedback && activeFeedbackTab && sessionId ? (
           <FeedbackTab
             sessionId={sessionId}

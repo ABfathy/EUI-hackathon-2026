@@ -325,13 +325,57 @@ export type PersistSnapshotInput = {
   };
 };
 
-function firstChunkByAssetId(assets: PromptAssetWithChunks[]) {
-  const map = new Map<string, SourceChunk>();
-  for (const asset of assets) {
-    const firstChunk = asset.chunks[0];
-    if (firstChunk) map.set(asset.id, firstChunk);
+function normalizeEvidenceMatchText(text: string) {
+  return text
+    .normalize("NFKC")
+    .replace(/\r\n/g, "\n")
+    .replace(/([\p{L}\p{N}])-\s+([\p{L}\p{N}])/gu, "$1$2")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function pickBestChunkForEvidence(
+  asset: PromptAssetWithChunks,
+  excerpt: string,
+): SourceChunk | null {
+  if (asset.chunks.length === 0) return null;
+
+  const normalizedExcerpt = normalizeEvidenceMatchText(excerpt);
+  if (!normalizedExcerpt) return asset.chunks[0] ?? null;
+
+  for (const chunk of asset.chunks) {
+    if (normalizeEvidenceMatchText(chunk.text).includes(normalizedExcerpt)) {
+      return chunk;
+    }
   }
-  return map;
+
+  const excerptTerms = Array.from(
+    new Set(
+      normalizedExcerpt
+        .replace(/[^\p{L}\p{N}\s]/gu, " ")
+        .split(/\s+/)
+        .filter((term) => term.length >= 4),
+    ),
+  );
+  if (excerptTerms.length === 0) return asset.chunks[0] ?? null;
+
+  let bestChunk = asset.chunks[0] ?? null;
+  let bestScore = -1;
+
+  for (const chunk of asset.chunks) {
+    const normalizedChunk = normalizeEvidenceMatchText(chunk.text);
+    const score = excerptTerms.reduce(
+      (sum, term) => sum + Number(normalizedChunk.includes(term)),
+      0,
+    );
+    if (score > bestScore) {
+      bestScore = score;
+      bestChunk = chunk;
+    }
+  }
+
+  return bestChunk;
 }
 
 function buildEvidenceRows(input: {
@@ -340,12 +384,13 @@ function buildEvidenceRows(input: {
   questionId?: string;
   evidence: BriefEvidenceOutput[];
   assetById: Map<string, PromptAssetWithChunks>;
-  chunkByAssetId: Map<string, SourceChunk>;
 }) {
   return input.evidence
     .map((evidence) => {
       const asset = input.assetById.get(evidence.sourceAssetId);
-      const chunk = input.chunkByAssetId.get(evidence.sourceAssetId);
+      const chunk = asset
+        ? pickBestChunkForEvidence(asset, evidence.excerpt)
+        : null;
       if (!asset || !chunk) return null;
 
       return {
@@ -372,7 +417,6 @@ export async function persistSnapshot({
   revisionEvent,
 }: PersistSnapshotInput) {
   const assetById = new Map(assets.map((asset) => [asset.id, asset]));
-  const chunkByAssetId = firstChunkByAssetId(assets);
 
   return prisma.$transaction(async (tx) => {
     const latest = await tx.briefSnapshot.aggregate({
@@ -411,7 +455,6 @@ export async function persistSnapshot({
           claimId: claim.id,
           evidence: item.evidence,
           assetById,
-          chunkByAssetId,
         });
         if (rows.length > 0) {
           await tx.evidenceRef.createMany({ data: rows });
@@ -438,7 +481,6 @@ export async function persistSnapshot({
           questionId: question.id,
           evidence: item.evidence,
           assetById,
-          chunkByAssetId,
         });
         if (rows.length > 0) {
           await tx.evidenceRef.createMany({ data: rows });

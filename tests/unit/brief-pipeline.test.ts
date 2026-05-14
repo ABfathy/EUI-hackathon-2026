@@ -143,6 +143,24 @@ describe("runBriefGeneration", () => {
               startMs: null,
               endMs: null,
             },
+            {
+              id: "chunk_2",
+              sourceAssetId: "asset_1",
+              kind: "TEXT_BLOCK",
+              orderIndex: 1,
+              text: "They also need approvals.",
+              locator: {
+                kind: "text-range",
+                paragraphStart: 1,
+                paragraphEnd: 1,
+              },
+              chunkLabel: "Text 2",
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              pageNumber: null,
+              startMs: null,
+              endMs: null,
+            },
           ],
         },
       ]);
@@ -209,6 +227,14 @@ describe("runBriefGeneration", () => {
         expect.objectContaining({
           snapshotId: "snapshot_1",
           sourceChunkId: "chunk_1",
+        }),
+      ],
+    });
+    expect(tx.evidenceRef.createMany).toHaveBeenNthCalledWith(2, {
+      data: [
+        expect.objectContaining({
+          snapshotId: "snapshot_1",
+          sourceChunkId: "chunk_2",
         }),
       ],
     });
